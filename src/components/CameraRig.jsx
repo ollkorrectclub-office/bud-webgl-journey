@@ -1,89 +1,140 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useScroll } from '@react-three/drei';
 import * as THREE from 'three';
+import gsap from 'gsap';
 
 export default function CameraRig() {
   const scroll = useScroll();
   
-  // Track current state separately from the ideal state to allow ultra-smooth lerping
-  const currentPosition = useRef(new THREE.Vector3(0, 1, 20));
-  const currentLookAt = useRef(new THREE.Vector3(0, 1, 10));
+  // Use a 1D timeline reference for GSAP buttery smooth physics without spatial sag
+  const smoothT = useRef({ val: null });
+  const currentLookAt = useRef(null);
+  const prevIdealZ = useRef(null);
 
-  // Define the cinematic camera path
-  const curve = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(0, 1, 20),       // Hero (Wide shot, starting slightly elevated)
-    new THREE.Vector3(0, -2, 5),       // Entering the field (skimming surface)
+  // --- PURE MATHEMATICAL TRAJECTORY ENGINE ---
+  // By completely abandoning Catmull-Rom splines, we mathematically guarantee
+  // ZERO "wiggles", ZERO bulges, and ZERO bouncing. The path is a flawlessly smooth equation.
+  const getIdealPosition = (t) => {
+    // Perfect seamless 350-unit loop (exactly 7 wavelengths of 50 units)
+    const z = 120 - t * 350;
     
-    // Card 1 is exactly at (-3, -1, -20)
-    new THREE.Vector3(-3, -1, -10),    // Swing into Card 1's lane early
-    new THREE.Vector3(-3, -1, -15),    // Fly straight at Card 1 (guarantees dead-center focus)
-    new THREE.Vector3(-3, -1, -17),    // Pause in front of Card 1
-    new THREE.Vector3(-3, -1, -18),    // Linger
-    new THREE.Vector3(-3, -1, -20),    // Pass through Card 1
+    // Slalom continues infinitely across the entire field!
+    const x = -4 * Math.cos( ((z + 15) / 50) * 2 * Math.PI );
     
-    // Card 2 is exactly at (3, -1, -40)
-    new THREE.Vector3(3, -1, -30),     // Swing into Card 2's lane early
-    new THREE.Vector3(3, -1, -35),     // Fly straight at Card 2
-    new THREE.Vector3(3, -1, -37),     // Pause in front of Card 2
-    new THREE.Vector3(3, -1, -38),     // Linger
-    new THREE.Vector3(3, -1, -40),     // Pass through Card 2
+    // Ground level forever!
+    const y = -2.5;
     
-    // Card 3 is exactly at (-3, -1, -60)
-    new THREE.Vector3(-3, -1, -50),    // Swing into Card 3's lane early
-    new THREE.Vector3(-3, -1, -55),    // Fly straight at Card 3
-    new THREE.Vector3(-3, -1, -57),    // Pause in front of Card 3
-    new THREE.Vector3(-3, -1, -58),    // Linger
-    new THREE.Vector3(-3, -1, -60),    // Pass through Card 3
-    
-    // Card 4 is exactly at (3, -1, -80)
-    new THREE.Vector3(3, -1, -70),     // Swing into Card 4's lane early
-    new THREE.Vector3(3, -1, -75),     // Fly straight at Card 4
-    new THREE.Vector3(3, -1, -77),     // Pause in front of Card 4
-    new THREE.Vector3(3, -1, -78),     // Linger
-    new THREE.Vector3(3, -1, -80),     // Pass through Card 4
-    
-    new THREE.Vector3(0, -2, -95),     // Return to center channel
-    
-    new THREE.Vector3(0, -2, -105),    // Verstehen Word
-    new THREE.Vector3(-2, -2, -120),   // Fragen Word
-    new THREE.Vector3(2, -2, -135),    // Analysieren Word
-    new THREE.Vector3(-1, -2, -150),   // Entscheiden Word
-    new THREE.Vector3(0, -2, -165),    // Approaching Final Clarity
-    new THREE.Vector3(0, -2, -180),    // Passing Final Clarity
-  ]);
+    return new THREE.Vector3(x, y, z);
+  };
+
+  // The exact fraction of the 350-unit journey where Z = 10.
+  // 120 - (t * 350) = 10  ->  t = 110 / 350
+  const startOffset = 110 / 350;
 
   useFrame((state, delta) => {
-    // scroll.offset goes from 0 to 1
-    const t = scroll.offset;
+    // scroll.offset goes from 0 to 1.
+    const rawScroll = scroll.offset || 0;
+    
+    // Base mathematical target using ARC LENGTH percentage
+    let targetT = (rawScroll + startOffset) % 1.0;
+    if (targetT < 0) targetT += 1.0;
 
-    // Optional: Hide hero text when scroll starts
-    const heroText = document.getElementById('hero-text');
-    if (heroText) {
-      if (t > 0.02) {
-        heroText.style.opacity = '0';
-      } else {
-        heroText.style.opacity = '1';
-      }
+    if (smoothT.current.val === null) smoothT.current.val = targetT;
+
+    // Handle infinite loop wrapping for the 1D timeline
+    if (Math.abs(targetT - smoothT.current.val) > 0.5) {
+       if (targetT < smoothT.current.val) smoothT.current.val -= 1.0;
+       else smoothT.current.val += 1.0;
     }
 
-    // Calculate exactly where the camera SHOULD be based on the scroll position
-    const idealPosition = curve.getPoint(t);
-    const idealTangent = curve.getTangent(t).normalize();
+    // Use GSAP for the ultimate buttery-smooth cinematic scroll easing!
+    // gsap.to perfectly overrides any existing tween and creates a beautiful power-curve deceleration.
+    gsap.to(smoothT.current, {
+       val: targetT,
+       duration: 1.5,
+       ease: "power3.out",
+       overwrite: true
+    });
     
-    // Calculate exactly where the camera SHOULD be looking (10 units ahead on the curve)
-    const idealLookAt = idealPosition.clone().add(idealTangent.multiplyScalar(10));
+    // Extract the bounded T for actual geometry calculation
+    const finalT = (smoothT.current.val % 1.0 + 1.0) % 1.0;
+    
+    // Optional: Smoothly fade hero text over a longer distance so it stays visible while
+    // the camera begins its journey, and fades out right as the cards emerge from the fog.
+    const heroText = document.getElementById('hero-text');
+    if (heroText) {
+      // Begins fading out instantly upon the first pixel of scroll (fadeStart = 0.0)
+      // Fully vanishes by rawScroll = 0.03
+      const fadeStart = 0.00;
+      const fadeEnd = 0.03;
+      
+      let opacity = 0.0;
+      if (rawScroll < fadeStart) opacity = 1.0;
+      else if (rawScroll <= fadeEnd) opacity = 1.0 - (rawScroll - fadeStart) / (fadeEnd - fadeStart);
+      else if (rawScroll >= 0.95) opacity = (rawScroll - 0.95) / 0.05; // Fade back in to complete the seamless infinite loop
+      
+      heroText.style.opacity = Math.max(0, Math.min(1, opacity)).toString();
+    }
 
-    // Framerate-independent smoothing factor
-    // Lower number = heavier smoothing/lag, Higher number = snappier
-    const dampFactor = 4.0 * delta;
+    // Calculate mathematically perfect trajectory point
+    const idealPosition = getIdealPosition(finalT);
+    
+    // --- EXPLICIT COMPONENT FRAMING ---
+    // To guarantee the camera NEVER bounces and ALWAYS points perfectly at the components,
+    // we abandon spline-tangent math entirely and explicitly track the exact coordinates of the objects!
+    const components = [
+      { z: -20, x: -4, y: -3.0, switchOffset: 1 },  
+      { z: -45, x: 4, y: -3.0, switchOffset: 1 },   
+      { z: -70, x: -4, y: -3.0, switchOffset: 1 },  
+      { z: -95, x: 4, y: -3.0, switchOffset: 1 },   
+      { z: -120, x: -4, y: -3.0, switchOffset: 1 },    
+      { z: -145, x: 4, y: -3.0, switchOffset: 1 }, 
+      { z: -170, x: -4, y: -3.0, switchOffset: 1 },  
+      { z: -195, x: 4, y: -3.0, switchOffset: 1 }, 
+      { z: -220, x: -4, y: -3.0, switchOffset: 1 },   
+      { z: -999, x: -4, y: -3.0, switchOffset: 1 }   
+    ];
 
-    // Smoothly drag the actual position and lookAt target towards the ideal targets
-    currentPosition.current.lerp(idealPosition, dampFactor);
-    currentLookAt.current.lerp(idealLookAt, dampFactor);
+    let targetComp = components[components.length - 1];
+    for (let i = 0; i < components.length; i++) {
+       // Use custom switch offsets to perfectly time cinematic pans.
+       // Cards hold gaze until passed. Stairs switch gaze early to look up to the next step!
+       if (idealPosition.z > components[i].z + components[i].switchOffset) {
+          targetComp = components[i];
+          break;
+       }
+    }
 
-    // Apply the smoothed vectors directly to the camera
-    state.camera.position.copy(currentPosition.current);
+    if (!currentLookAt.current) {
+      currentLookAt.current = new THREE.Vector3(targetComp.x, targetComp.y, Math.min(idealPosition.z - 15, targetComp.z));
+    }
+
+    // --- INFINITE LOOP ROTATION FIX ---
+    // If the scrollbar wraps, the camera teleports 340 units instantly. 
+    // We MUST also teleport the damped gaze target 340 units, otherwise the camera flips 180 degrees to look backwards!
+    if (prevIdealZ.current !== null) {
+       if (idealPosition.z - prevIdealZ.current > 175) {
+          currentLookAt.current.z += 350;
+       } else if (idealPosition.z - prevIdealZ.current < -175) {
+          currentLookAt.current.z -= 350;
+       }
+    }
+    prevIdealZ.current = idealPosition.z;
+
+    // Smoothly pan the head to look directly at the exact 3D coordinates of the component!
+    currentLookAt.current.x = THREE.MathUtils.damp(currentLookAt.current.x, targetComp.x, 3.0, delta);
+    currentLookAt.current.y = THREE.MathUtils.damp(currentLookAt.current.y, targetComp.y, 3.0, delta);
+    
+    // Z gracefully locks onto the component's true depth, but is clamped to always remain 
+    // at least 15 units ahead of the camera so the drone doesn't flip around backwards!
+    const rawTargetZ = THREE.MathUtils.damp(currentLookAt.current.z, targetComp.z, 3.0, delta);
+    currentLookAt.current.z = Math.min(rawTargetZ, idealPosition.z - 15);
+
+    // Apply the mathematically perfect targets directly to the camera!
+    // Since 'rawScroll' is natively smoothed by <ScrollControls damping={0.2}>,
+    // the flight remains buttery smooth, but is now flawlessly centered.
+    state.camera.position.copy(idealPosition);
     state.camera.lookAt(currentLookAt.current);
   });
 

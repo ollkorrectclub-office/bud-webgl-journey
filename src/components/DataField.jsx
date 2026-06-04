@@ -4,9 +4,10 @@ import * as THREE from 'three';
 
 export default function DataField() {
   const pointsMatRef = useRef();
-  const linesMatRef = useRef();
+  const dustMatRef = useRef();
 
-    const { positions, colors, sizes, intensities, lineIndices, dustPositions, version } = useMemo(() => {
+  const { positions, colors, sizes, intensities, dustPositions, version } = useMemo(() => {
+    // EXPANDED GRID FOR INFINITE SENSE
     const gridX = 600;
     const gridZ = 600;
     const spacingX = 0.6;
@@ -17,7 +18,6 @@ export default function DataField() {
     const col = new Float32Array(numPoints * 3);
     const size = new Float32Array(numPoints);
     const intensity = new Float32Array(numPoints);
-    const indices = [];
 
     const colorPalette = [
       new THREE.Color('#5F7F93'), // Steel Blue
@@ -30,7 +30,6 @@ export default function DataField() {
       for (let x = 0; x < gridX; x++) {
         const i = z * gridX + x;
         
-        // Perfectly aligned grid, no random jitter to act as structured wires
         pos[i * 3] = (x - gridX / 2) * spacingX;
         pos[i * 3 + 1] = 0; 
         pos[i * 3 + 2] = (z - gridZ / 2) * spacingZ;
@@ -46,26 +45,20 @@ export default function DataField() {
         col[i * 3 + 1] = c.g;
         col[i * 3 + 2] = c.b;
 
-        // All perfectly the same size, no variation
         size[i] = 1.0;
-        
-        // No random intensities so bloom doesn't make them look different sizes
         intensity[i] = 1.0;
-
-        // Sparse Data Wires: Because density is massive, dramatically lower connection probability
-        if (x < gridX - 1 && Math.random() > 0.99) indices.push(i, i + 1);
-        if (z < gridZ - 1 && Math.random() > 0.99) indices.push(i, i + gridX);
-        if (x < gridX - 1 && z < gridZ - 1 && Math.random() > 0.996) indices.push(i, i + gridX + 1);
       }
     }
     
     // Deep volume dust points
-    const dustCount = 15000;
+    // To seamlessly loop over 350 units, we only need to spawn them in a 350 wide bounding box
+    const dustCount = 8000;
     const dustPos = new Float32Array(dustCount * 3);
     for (let i = 0; i < dustCount; i++) {
-      dustPos[i * 3] = (Math.random() - 0.5) * 800; // Wide spread
+      dustPos[i * 3] = (Math.random() - 0.5) * 800; // Wide X spread
       dustPos[i * 3 + 1] = (Math.random() - 1.0) * 80 - 5; // Deep underneath (-5 to -85)
-      dustPos[i * 3 + 2] = (Math.random() - 0.5) * 800; // Deep spread
+      // Exactly 350 units of spread on Z so the shader can tile it perfectly
+      dustPos[i * 3 + 2] = (Math.random() - 0.5) * 350; 
     }
     
     return { 
@@ -73,14 +66,14 @@ export default function DataField() {
       colors: col, 
       sizes: size, 
       intensities: intensity, 
-      lineIndices: new Uint16Array(indices),
       dustPositions: dustPos,
-      version: Date.now() // Unique ID to force rebuild
+      version: Date.now()
     };
-  }, ['force_hmr_reload_v2']);
+  }, []);
 
   const vertexShader = `
     uniform float time;
+    uniform float cameraZ;
     attribute vec3 customColor;
     attribute float customSize;
     attribute float customIntensity;
@@ -90,69 +83,62 @@ export default function DataField() {
     varying float vHeight;
     varying float vWake;
 
-    vec3 permute(vec3 x) { return mod(((x*34.0)+1.0)*x, 289.0); }
-    float snoise(vec2 v){
-      const vec4 C = vec4(0.211324865405187, 0.366025403784439,
-               -0.577350269189626, 0.024390243902439);
-      vec2 i  = floor(v + dot(v, C.yy) );
-      vec2 x0 = v -   i + dot(i, C.xx);
-      vec2 i1;
-      i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
-      vec4 x12 = x0.xyxy + C.xxzz;
-      x12.xy -= i1;
-      i = mod(i, 289.0);
-      vec3 p = permute( permute( i.y + vec3(0.0, i1.y, 1.0 ))
-      + i.x + vec3(0.0, i1.x, 1.0 ));
-      vec3 m = max(0.5 - vec3(dot(x0,x0), dot(x12.xy,x12.xy), dot(x12.zw,x12.zw)), 0.0);
-      m = m*m ;
-      m = m*m ;
-      vec3 x = 2.0 * fract(p * C.www) - 1.0;
-      vec3 h = abs(x) - 0.5;
-      vec3 ox = floor(x + 0.5);
-      vec3 a0 = x - ox;
-      m *= 1.79284291400159 - 0.85373472095314 * ( a0*a0 + h*h );
-      vec3 g;
-      g.x  = a0.x  * x0.x  + h.x  * x0.y;
-      g.yz = a0.yz * x12.xz + h.yz * x12.yw;
-      return 130.0 * dot(m, g);
-    }
-
     void main() {
       vColor = customColor;
       vIntensity = customIntensity;
       vec3 pos = position;
       
-      // Slower, majestic wave travel speed
-      // To enforce a massive "Zoom In" / Forward speed illusion,
-      // we must subtract time on the Z axis. This makes the waves travel TOWARDS the camera
-      // at high speed, creating the optical illusion of zooming massively IN to the matrix!
-      float rawNoise = snoise(vec2(pos.x * 0.01 + time * 0.04, pos.z * 0.01 - time * 0.04));
-      float rawNoise2 = snoise(vec2(pos.x * 0.03 - time * 0.03, pos.z * 0.03 - time * 0.03));
+      // --- INFINITE TERRAIN WRAPPING ---
+      // Wrap the grid seamlessly so the terrain physically moves with the camera infinitely
+      float localCameraZ = cameraZ + 50.0;
+      float distZ = pos.z - localCameraZ;
+      pos.z = localCameraZ + mod(distZ + 175.0, 350.0) - 175.0;
       
-      // Smooth power curve: No sharp corners. Maps noise to [0, 1] and gently narrows the peaks
+      // PERFECT MATHEMATICAL LOOP LOGIC
+      // The camera jumps exactly 350 units on the Z axis when the loop wraps.
+      // To ensure the terrain shape doesn't pop, the wave frequency must be an exact multiple of 2*PI / 350.
+      float baseFreq = 0.017951958; // 2.0 * PI / 350.0
+      
+      // Create organic ocean waves using overlapping sine waves that are mathematically periodic over 340 units
+      float t1 = time * 0.8;
+      float t2 = time * 0.5;
+      
+      // Layer 1: Broad rolling waves
+      float w1 = sin(pos.x * 0.015 + time * 0.5) * cos(pos.z * baseFreq * 1.0 - time * 0.8);
+      
+      // Layer 2: Medium chop
+      float w2 = sin(pos.x * 0.03 - time * 0.3) * sin(pos.z * baseFreq * 3.0 - time * 0.6);
+      
+      // Layer 3: Fine details
+      float w3 = cos(pos.x * 0.07 + time * 0.7) * cos(pos.z * baseFreq * 7.0 - time * 0.4);
+      
+      float rawNoise = (w1 + w2 * 0.5 + w3 * 0.25) / 1.75;
+      
+      float w4 = sin(pos.x * 0.02 - time * 0.4) * cos(pos.z * baseFreq * 2.0 - time * 0.5);
+      float w5 = cos(pos.x * 0.05 + time * 0.2) * sin(pos.z * baseFreq * 5.0 - time * 0.7);
+      
+      float rawNoise2 = (w4 + w5 * 0.5) / 1.5;
+      
+      // Smooth power curve: No sharp corners
       float n1 = pow((rawNoise + 1.0) * 0.5, 1.3);
       float n2 = pow((rawNoise2 + 1.0) * 0.5, 1.3);
       
-      // Base terrain shape (scaled to keep the same overall height range)
+      // Base terrain shape (scaled to match previous heights)
       pos.y += (n1 * 10.0 - 5.0) + (n2 * 3.0 - 1.5);
       
       // --- CAMERA FORCEFIELD WAKE ---
       vec4 worldPosition = modelMatrix * vec4(pos, 1.0);
       float distToCamera = distance(worldPosition.xz, cameraPosition.xz);
       
-      // Calculate how close the dot is to the camera (0.0 to 1.0)
       float wakeEffect = smoothstep(18.0, 0.0, distToCamera);
-      
-      // Push the dots down aggressively to carve a trench for the camera
       pos.y -= wakeEffect * 10.0;
       
-      // Add a slight upward splash on the outer edge of the wake
       float splashEffect = smoothstep(28.0, 15.0, distToCamera) * smoothstep(5.0, 15.0, distToCamera);
       pos.y += splashEffect * 4.0;
       
-      vWake = wakeEffect; // Pass to fragment shader for glowing
+      vWake = wakeEffect;
 
-      // Add a gentle, small vertical "breathing" ripple so it still feels alive
+      // Small vertical breathing
       pos.y += sin(pos.x * 0.05 + pos.z * 0.05 + time * 1.5) * 0.5;
       
       vHeight = pos.y;
@@ -163,14 +149,13 @@ export default function DataField() {
       vDistance = -mvPosition.z;
 
       #ifdef IS_POINTS
-        // Force exactly the same pixel size regardless of 3D depth
         gl_PointSize = 2.5;
       #endif
     }
   `;
 
   const pointsShader = useMemo(() => new THREE.ShaderMaterial({
-    uniforms: { time: { value: 0 } },
+    uniforms: { time: { value: 0 }, cameraZ: { value: 0 } },
     defines: { IS_POINTS: '' },
     vertexShader,
     fragmentShader: `
@@ -184,55 +169,31 @@ export default function DataField() {
         float ll = length(xy);
         if (ll > 0.5) discard;
         
-        // --- 3D SPHERE ILLUSION ---
-        // Calculate the 3D normal for the sphere surface at this pixel
         vec3 normal = vec3(xy * 2.0, sqrt(max(1.0 - dot(xy * 2.0, xy * 2.0), 0.0)));
-        
-        // Define a light direction (coming from top-right-front)
         vec3 lightDir = normalize(vec3(1.0, 1.0, 1.0));
-        
-        // Calculate diffuse lighting
         float diffuse = max(dot(normal, lightDir), 0.0);
         
-        // Add ambient light so shadowed areas remain visible
         float ambient = 0.5;
         float lighting = ambient + diffuse * 0.5;
         
-        // Calculate a small specular highlight for a polished 3D marble look
         vec3 viewDir = vec3(0.0, 0.0, 1.0); 
         vec3 halfDir = normalize(lightDir + viewDir);
         float specular = pow(max(dot(normal, halfDir), 0.0), 16.0) * 0.4;
         
-        // Base color from the original dot palette
         vec3 dotColor = vColor;
-        
-        // Highlight factor: Only activates near the very top of the wave peaks
         float highlightFactor = smoothstep(1.5, 5.0, vHeight);
-        
-        // The champagne highlight color
         vec3 champagneLight = vec3(1.0, 0.85, 0.55);
-        
-        // Blend the dot color towards champagne ONLY when it rides up to a peak
         dotColor = mix(dotColor, champagneLight, highlightFactor * 0.85);
 
-        // Combine base color, 3D lighting, and random glow intensity
         vec3 finalColor = dotColor * lighting * vIntensity + vec3(specular);
 
-        // Height-based glow mapping
-        // Valleys (approx -4.0) will be much darker, peaks (approx 5.0) will be much brighter
         float heightFactor = smoothstep(-4.0, 5.0, vHeight);
-        
-        // Extra intense glow for the champagne peaks
         float peakGlow = mix(0.3, 2.5, heightFactor); 
         finalColor *= peakGlow;
 
-        // Camera forcefield glow (dots light up intensely as they are pushed away)
         finalColor += champagneLight * vWake * 2.5;
 
-        // Keep the sharp edge
         float alpha = smoothstep(0.5, 0.45, ll);
-        
-        // Fade out in distance (fog) to guarantee the edge of the mesh is never seen
         float fogFactor = smoothstep(120.0, 20.0, vDistance);
         alpha *= fogFactor;
 
@@ -244,37 +205,49 @@ export default function DataField() {
     blending: THREE.NormalBlending
   }), [vertexShader]);
 
-  const linesShader = useMemo(() => new THREE.ShaderMaterial({
-    uniforms: { time: { value: 0 } },
-    vertexShader,
-    fragmentShader: `
-      varying vec3 vColor;
-      varying float vIntensity;
+  // Special shader for dust that perfectly wraps around the camera!
+  const dustShader = useMemo(() => new THREE.ShaderMaterial({
+    uniforms: { cameraZ: { value: 0 } },
+    vertexShader: `
+      uniform float cameraZ;
       varying float vDistance;
-      varying float vHeight;
-      varying float vWake;
       void main() {
-        // Very faded, subtle lines
-        float alpha = 0.06; 
+        vec3 pos = position;
         
-        // Hide line edges in fog
-        float fogFactor = smoothstep(100.0, 20.0, vDistance);
-        alpha *= fogFactor;
-
-        // Faded subtle color for the wire
-        vec3 lineColor = vec3(0.5, 0.6, 0.7);
-        gl_FragColor = vec4(lineColor, alpha);
+        // Group is at Z=-50, so local camera Z is cameraZ + 50
+        float localCameraZ = cameraZ + 50.0;
+        float distZ = pos.z - localCameraZ;
+        
+        // Wrap Z over exactly 350 units
+        pos.z = localCameraZ + mod(distZ + 175.0, 350.0) - 175.0;
+        
+        vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+        gl_Position = projectionMatrix * mvPosition;
+        gl_PointSize = 1.2;
+        vDistance = -mvPosition.z;
+      }
+    `,
+    fragmentShader: `
+      varying float vDistance;
+      void main() {
+        vec2 xy = gl_PointCoord.xy - vec2(0.5);
+        if (length(xy) > 0.5) discard;
+        float fogFactor = smoothstep(120.0, 20.0, vDistance);
+        gl_FragColor = vec4(0.22, 0.31, 0.4, 0.3 * fogFactor);
       }
     `,
     transparent: true,
     depthWrite: false,
-    blending: THREE.AdditiveBlending
-  }), [vertexShader]);
+    blending: THREE.NormalBlending
+  }), []);
 
   useFrame((state) => {
     const time = state.clock.getElapsedTime();
-    if (pointsMatRef.current) pointsMatRef.current.uniforms.time.value = time;
-    if (linesMatRef.current) linesMatRef.current.uniforms.time.value = time;
+    if (pointsMatRef.current) {
+       pointsMatRef.current.uniforms.time.value = time;
+       pointsMatRef.current.uniforms.cameraZ.value = state.camera.position.z;
+    }
+    if (dustMatRef.current) dustMatRef.current.uniforms.cameraZ.value = state.camera.position.z;
   });
 
   return (
@@ -290,21 +263,12 @@ export default function DataField() {
         <primitive object={pointsShader} attach="material" ref={pointsMatRef} />
       </points>
 
-      {/* Lines */}
-      <lineSegments>
-        <bufferGeometry key={"lns-" + version}>
-          <bufferAttribute attach="attributes-position" count={positions.length / 3} array={positions} itemSize={3} />
-          <bufferAttribute attach="index" array={lineIndices} count={lineIndices.length} itemSize={1} />
-        </bufferGeometry>
-        <primitive object={linesShader} attach="material" ref={linesMatRef} />
-      </lineSegments>
-
       {/* Deep Background Dust */}
       <points>
         <bufferGeometry key={"dust-" + version}>
           <bufferAttribute attach="attributes-position" count={dustPositions.length / 3} array={dustPositions} itemSize={3} />
         </bufferGeometry>
-        <pointsMaterial size={1.2} color="#3a5168" transparent opacity={0.3} sizeAttenuation={false} fog={true} />
+        <primitive object={dustShader} attach="material" ref={dustMatRef} />
       </points>
     </group>
   );
