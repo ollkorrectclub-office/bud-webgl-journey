@@ -1,23 +1,28 @@
-import React, { useMemo, useRef } from 'react';
+import React, { useMemo, useRef, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
+import { useScroll } from '@react-three/drei';
 import * as THREE from 'three';
 
+const GRID_X = 600;
+const GRID_Z = 600;
+const NUM_POINTS = GRID_X * GRID_Z;
+
 export default function DataField() {
+  const pointsGeometryRef = useRef();
   const pointsMatRef = useRef();
   const dustMatRef = useRef();
+  const scroll = useScroll();
 
-  const { positions, colors, sizes, intensities, dustPositions, version } = useMemo(() => {
-    // EXPANDED GRID FOR INFINITE SENSE
-    const gridX = 600;
-    const gridZ = 600;
+  const { positions, colors, sizes, intensities, customLogoTarget, customLogoColor, dustPositions, version } = useMemo(() => {
     const spacingX = 0.6;
     const spacingZ = 0.6;
     
-    const numPoints = gridX * gridZ;
-    const pos = new Float32Array(numPoints * 3);
-    const col = new Float32Array(numPoints * 3);
-    const size = new Float32Array(numPoints);
-    const intensity = new Float32Array(numPoints);
+    const pos = new Float32Array(NUM_POINTS * 3);
+    const col = new Float32Array(NUM_POINTS * 3);
+    const size = new Float32Array(NUM_POINTS);
+    const intensity = new Float32Array(NUM_POINTS);
+    const logoTgt = new Float32Array(NUM_POINTS * 3);
+    const logoCol = new Float32Array(NUM_POINTS * 3);
 
     const colorPalette = [
       new THREE.Color('#5F7F93'), // Steel Blue
@@ -26,13 +31,23 @@ export default function DataField() {
       new THREE.Color('#AD175D'), // Bud Magenta (rare)
     ];
 
-    for (let z = 0; z < gridZ; z++) {
-      for (let x = 0; x < gridX; x++) {
-        const i = z * gridX + x;
+    for (let z = 0; z < GRID_Z; z++) {
+      for (let x = 0; x < GRID_X; x++) {
+        const i = z * GRID_X + x;
         
-        pos[i * 3] = (x - gridX / 2) * spacingX;
+        pos[i * 3] = (x - GRID_X / 2) * spacingX;
         pos[i * 3 + 1] = 0; 
-        pos[i * 3 + 2] = (z - gridZ / 2) * spacingZ;
+        pos[i * 3 + 2] = (z - GRID_Z / 2) * spacingZ;
+        
+        // Initialize logo target to start identical to the grid
+        logoTgt[i * 3] = pos[i * 3];
+        logoTgt[i * 3 + 1] = pos[i * 3 + 1];
+        logoTgt[i * 3 + 2] = pos[i * 3 + 2];
+
+        // Logo color initializes to original color
+        logoCol[i * 3] = col[i * 3];
+        logoCol[i * 3 + 1] = col[i * 3 + 1];
+        logoCol[i * 3 + 2] = col[i * 3 + 2];
 
         const rand = Math.random();
         let c;
@@ -66,17 +81,83 @@ export default function DataField() {
       colors: col, 
       sizes: size, 
       intensities: intensity, 
+      customLogoTarget: logoTgt,
+      customLogoColor: logoCol,
       dustPositions: dustPos,
       version: Date.now()
     };
   }, []);
 
+  // --- LOGO PARSING ENGINE ---
+  useEffect(() => {
+    const img = new Image();
+    img.crossOrigin = "Anonymous";
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      // Process at a healthy resolution. The 360,000 dots will be randomly assigned to these valid pixels.
+      const scale = 250 / Math.max(img.width, img.height);
+      canvas.width = img.width * scale;
+      canvas.height = img.height * scale;
+      
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+      
+      const validPixels = [];
+      for (let y = 0; y < canvas.height; y++) {
+        for (let x = 0; x < canvas.width; x++) {
+          const idx = (y * canvas.width + x) * 4;
+          const alpha = imgData[idx + 3];
+          if (alpha > 50) { // Any non-transparent pixel is a valid target
+            validPixels.push({
+              x: (x - canvas.width / 2) * 0.35, 
+              y: -(y - canvas.height / 2) * 0.35 + 2.0, // Invert Y, elevate into the sky
+              r: imgData[idx] / 255.0,
+              g: imgData[idx + 1] / 255.0,
+              b: imgData[idx + 2] / 255.0
+            });
+          }
+        }
+      }
+
+      if (validPixels.length > 0 && pointsGeometryRef.current) {
+        const tgtArray = pointsGeometryRef.current.attributes.customLogoTarget.array;
+        const colArray = pointsGeometryRef.current.attributes.customLogoColor.array;
+        
+        // Manual offset to perfectly center the logo relative to the camera
+        const centerXOffset = -7.5; 
+        
+        for (let i = 0; i < NUM_POINTS; i++) {
+           const p = validPixels[Math.floor(Math.random() * validPixels.length)];
+           
+           // Much tighter scatter for a more defined, crisp logo
+           tgtArray[i * 3] = p.x + centerXOffset + (Math.random() - 0.5) * 0.08;     
+           tgtArray[i * 3 + 1] = p.y + (Math.random() - 0.5) * 0.08; 
+           
+           // Thinner Z-depth for better definition (was 12.0, now 2.5)
+           tgtArray[i * 3 + 2] = 20.0 + (Math.random() - 0.5) * 2.5; 
+           
+           // Store the target pixel color!
+           colArray[i * 3] = p.r;
+           colArray[i * 3 + 1] = p.g;
+           colArray[i * 3 + 2] = p.b;
+        }
+        pointsGeometryRef.current.attributes.customLogoTarget.needsUpdate = true;
+        pointsGeometryRef.current.attributes.customLogoColor.needsUpdate = true;
+      }
+    };
+    img.src = '/src/assets/BUD.svg';
+  }, []);
+
   const vertexShader = `
     uniform float time;
     uniform float cameraZ;
+    uniform float uMorphProgress;
     attribute vec3 customColor;
     attribute float customSize;
     attribute float customIntensity;
+    attribute vec3 customLogoTarget;
+    attribute vec3 customLogoColor;
     varying vec3 vColor;
     varying float vIntensity;
     varying float vDistance;
@@ -145,7 +226,31 @@ export default function DataField() {
       // Small vertical breathing (slowed down from 1.5 to 0.5)
       pos.y += sin(pos.x * 0.05 + pos.z * 0.05 + time * 0.5) * 0.5;
       
-      vHeight = pos.y;
+      vHeight = pos.y; // Save height for shading BEFORE the logo morph
+
+      // --- LOGO MORPH PHYSICS ---
+      // Distribute the morphing time randomly across the swarm so they don't all move rigidly at once
+      float randomSeed = fract(sin(dot(customLogoTarget.xy, vec2(12.9898, 78.233))) * 43758.5453);
+      float localProgress = smoothstep(randomSeed * 0.3, randomSeed * 0.3 + 0.7, uMorphProgress);
+
+      // Smoothly interpolate the color of the point to the exact color of the SVG pixel!
+      vColor = mix(customColor, customLogoColor, localProgress);
+
+      // Create a gorgeous cinematic Bezier arc so the particles explode upward before settling into the logo!
+      vec3 wavePos = pos;
+      vec3 finalLogoPos = customLogoTarget;
+      
+      vec3 midPoint = (wavePos + finalLogoPos) * 0.5;
+      midPoint.y += 30.0 + randomSeed * 20.0; // Huge swooping arcs up to 50 units high!
+      
+      float t = localProgress;
+      float invT = 1.0 - t;
+      
+      // Quadratic bezier curve interpolation
+      vec3 morphedPos = invT * invT * wavePos + 2.0 * invT * t * midPoint + t * t * finalLogoPos;
+      
+      // Apply the morph
+      pos = morphedPos;
 
       vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
       gl_Position = projectionMatrix * mvPosition;
@@ -159,7 +264,11 @@ export default function DataField() {
   `;
 
   const pointsShader = useMemo(() => new THREE.ShaderMaterial({
-    uniforms: { time: { value: 0 }, cameraZ: { value: 0 } },
+    uniforms: { 
+       time: { value: 0 }, 
+       cameraZ: { value: 0 },
+       uMorphProgress: { value: 0 }
+    },
     defines: { IS_POINTS: '' },
     vertexShader,
     fragmentShader: `
@@ -287,9 +396,27 @@ export default function DataField() {
 
   useFrame((state) => {
     const time = state.clock.getElapsedTime();
+    const rawScroll = scroll.offset || 0;
+    
+    // Convert linear scroll into a cinematic 3-stage morph sequence:
+    // 0.82 -> 0.88 : Fly up from waves into the logo
+    // 0.88 -> 0.94 : Hold perfectly in the logo shape as camera flies towards it
+    // 0.94 -> 0.99 : Dissolve back into waves seamlessly as the loop completes
+    let morph = 0;
+    const cycle = rawScroll % 1.0;
+    
+    if (cycle > 0.80 && cycle <= 0.88) {
+       morph = (cycle - 0.80) / 0.08; 
+    } else if (cycle > 0.88 && cycle <= 0.94) {
+       morph = 1.0;
+    } else if (cycle > 0.94 && cycle <= 0.99) {
+       morph = 1.0 - (cycle - 0.94) / 0.05;
+    }
+
     if (pointsMatRef.current) {
        pointsMatRef.current.uniforms.time.value = time;
        pointsMatRef.current.uniforms.cameraZ.value = state.camera.position.z;
+       pointsMatRef.current.uniforms.uMorphProgress.value = morph;
     }
     if (dustMatRef.current) dustMatRef.current.uniforms.cameraZ.value = state.camera.position.z;
   });
@@ -298,11 +425,13 @@ export default function DataField() {
     <group position={[0, -10, -50]}>
       {/* Points */}
       <points>
-        <bufferGeometry key={"pts-" + version}>
+        <bufferGeometry ref={pointsGeometryRef} key={"pts-" + version}>
           <bufferAttribute attach="attributes-position" count={positions.length / 3} array={positions} itemSize={3} />
           <bufferAttribute attach="attributes-customColor" count={colors.length / 3} array={colors} itemSize={3} />
           <bufferAttribute attach="attributes-customSize" count={sizes.length} array={sizes} itemSize={1} />
           <bufferAttribute attach="attributes-customIntensity" count={intensities.length} array={intensities} itemSize={1} />
+          <bufferAttribute attach="attributes-customLogoTarget" count={customLogoTarget.length / 3} array={customLogoTarget} itemSize={3} />
+          <bufferAttribute attach="attributes-customLogoColor" count={customLogoColor.length / 3} array={customLogoColor} itemSize={3} />
         </bufferGeometry>
         <primitive object={pointsShader} attach="material" ref={pointsMatRef} />
       </points>
