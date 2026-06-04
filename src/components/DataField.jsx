@@ -82,6 +82,7 @@ export default function DataField() {
     varying float vDistance;
     varying float vHeight;
     varying float vWake;
+    varying vec2 vPosXZ;
 
     void main() {
       vColor = customColor;
@@ -94,37 +95,40 @@ export default function DataField() {
       float distZ = pos.z - localCameraZ;
       pos.z = localCameraZ + mod(distZ + 175.0, 350.0) - 175.0;
       
+      vPosXZ = pos.xz; // Save the wrapped coordinates for the electricity logic!
+      
       // PERFECT MATHEMATICAL LOOP LOGIC
       // The camera jumps exactly 350 units on the Z axis when the loop wraps.
       // To ensure the terrain shape doesn't pop, the wave frequency must be an exact multiple of 2*PI / 350.
       float baseFreq = 0.017951958; // 2.0 * PI / 350.0
       
       // Create organic ocean waves using overlapping sine waves that are mathematically periodic over 340 units
-      float t1 = time * 0.8;
-      float t2 = time * 0.5;
+      // All time multipliers have been halved to dramatically slow down the visual kinetic energy
       
       // Layer 1: Broad rolling waves
-      float w1 = sin(pos.x * 0.015 + time * 0.5) * cos(pos.z * baseFreq * 1.0 - time * 0.8);
+      float w1 = sin(pos.x * 0.015 + time * 0.25) * cos(pos.z * baseFreq * 1.0 - time * 0.4);
       
       // Layer 2: Medium chop
-      float w2 = sin(pos.x * 0.03 - time * 0.3) * sin(pos.z * baseFreq * 3.0 - time * 0.6);
+      float w2 = sin(pos.x * 0.03 - time * 0.15) * sin(pos.z * baseFreq * 3.0 - time * 0.3);
       
       // Layer 3: Fine details
-      float w3 = cos(pos.x * 0.07 + time * 0.7) * cos(pos.z * baseFreq * 7.0 - time * 0.4);
+      float w3 = cos(pos.x * 0.07 + time * 0.35) * cos(pos.z * baseFreq * 7.0 - time * 0.2);
       
       float rawNoise = (w1 + w2 * 0.5 + w3 * 0.25) / 1.75;
       
-      float w4 = sin(pos.x * 0.02 - time * 0.4) * cos(pos.z * baseFreq * 2.0 - time * 0.5);
-      float w5 = cos(pos.x * 0.05 + time * 0.2) * sin(pos.z * baseFreq * 5.0 - time * 0.7);
+      float w4 = sin(pos.x * 0.02 - time * 0.2) * cos(pos.z * baseFreq * 2.0 - time * 0.25);
+      float w5 = cos(pos.x * 0.05 + time * 0.1) * sin(pos.z * baseFreq * 5.0 - time * 0.35);
       
       float rawNoise2 = (w4 + w5 * 0.5) / 1.5;
       
-      // Smooth power curve: No sharp corners
-      float n1 = pow((rawNoise + 1.0) * 0.5, 1.3);
-      float n2 = pow((rawNoise2 + 1.0) * 0.5, 1.3);
+      // Smooth power curve: No sharp corners.
+      // Exponent slightly increased to 1.4 to make the peaks (pointings) a bit more pronounced
+      float n1 = pow((rawNoise + 1.0) * 0.5, 1.4);
+      float n2 = pow((rawNoise2 + 1.0) * 0.5, 1.4);
       
-      // Base terrain shape (scaled to match previous heights)
-      pos.y += (n1 * 10.0 - 5.0) + (n2 * 3.0 - 1.5);
+      // Base terrain shape (scaled up for noticeably higher wave peaks!)
+      // Increased the multiplier from 10.0 to 15.0 for the main waves, and 3.0 to 5.0 for the secondary chop
+      pos.y += (n1 * 15.0 - 7.5) + (n2 * 5.0 - 2.5);
       
       // --- CAMERA FORCEFIELD WAKE ---
       vec4 worldPosition = modelMatrix * vec4(pos, 1.0);
@@ -138,8 +142,8 @@ export default function DataField() {
       
       vWake = wakeEffect;
 
-      // Small vertical breathing
-      pos.y += sin(pos.x * 0.05 + pos.z * 0.05 + time * 1.5) * 0.5;
+      // Small vertical breathing (slowed down from 1.5 to 0.5)
+      pos.y += sin(pos.x * 0.05 + pos.z * 0.05 + time * 0.5) * 0.5;
       
       vHeight = pos.y;
 
@@ -159,11 +163,14 @@ export default function DataField() {
     defines: { IS_POINTS: '' },
     vertexShader,
     fragmentShader: `
+      uniform float time;
       varying vec3 vColor;
       varying float vIntensity;
       varying float vDistance;
       varying float vHeight;
       varying float vWake;
+      varying vec2 vPosXZ;
+      
       void main() {
         vec2 xy = gl_PointCoord.xy - vec2(0.5);
         float ll = length(xy);
@@ -192,6 +199,43 @@ export default function DataField() {
         finalColor *= peakGlow;
 
         finalColor += champagneLight * vWake * 2.5;
+
+        // --- ELECTRICITY DATA STREAMS ---
+        // Exactly 10.0 / 350.0 to mathematically guarantee flawless infinite looping when Z wraps!
+        float sparkFreq = 10.0 / 350.0; 
+        
+        // Z-axis sparks (traveling along depth)
+        // Quantize X to precisely target specific columns in the 0.6-spaced grid
+        float gridLineX = floor(vPosXZ.x / 0.6);
+        float hashX = fract(sin(gridLineX * 12.9898) * 43758.5453);
+        float hasElecZ = step(0.96, hashX); // 4% of columns active
+        float dirZ = sign(fract(hashX * 13.3) - 0.5); // Random direction (+1 or -1)
+        float speedZ = 1.0 + fract(hashX * 27.1) * 2.5; // Random speed
+        
+        // Modulo 10.0 creates a long delay. The spark is only visible briefly per 10-unit cycle.
+        float cycleZ = mod(vPosXZ.y * sparkFreq - time * speedZ * dirZ + hashX * 100.0, 10.0);
+        float coreZ = smoothstep(4.9, 5.0, cycleZ) * smoothstep(5.1, 5.0, cycleZ);
+        float glowZ = smoothstep(4.4, 5.0, cycleZ) * smoothstep(5.6, 5.0, cycleZ) * 0.4;
+        float finalSparkZ = (coreZ + glowZ) * hasElecZ;
+        
+        // X-axis sparks (traveling horizontally)
+        float gridLineZ = floor(vPosXZ.y / 0.6);
+        float hashZ = fract(sin(gridLineZ * 78.233) * 43758.5453);
+        float hasElecX = step(0.97, hashZ); // 3% of rows active
+        float dirX = sign(fract(hashZ * 17.5) - 0.5); // Random direction (+1 or -1)
+        float speedX = 1.0 + fract(hashZ * 33.3) * 3.0; // Random speed
+        
+        float cycleX = mod(vPosXZ.x * 0.015 - time * speedX * dirX + hashZ * 100.0, 10.0);
+        float coreX = smoothstep(4.9, 5.0, cycleX) * smoothstep(5.1, 5.0, cycleX);
+        float glowX = smoothstep(4.4, 5.0, cycleX) * smoothstep(5.6, 5.0, cycleX) * 0.4;
+        float finalSparkX = (coreX + glowX) * hasElecX;
+
+        float totalSpark = max(finalSparkZ, finalSparkX);
+
+        // Brilliant cyan-white electricity burst for the Bloom pass
+        vec3 elecColor = vec3(0.2, 0.8, 1.8) * 3.0; 
+        
+        finalColor += elecColor * totalSpark;
 
         float alpha = smoothstep(0.5, 0.45, ll);
         float fogFactor = smoothstep(120.0, 20.0, vDistance);
