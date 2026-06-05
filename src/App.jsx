@@ -107,6 +107,9 @@ export default function App() {
       {showDetail && activeCard && (
         <CardDetail card={activeCard} onBack={handleBack} />
       )}
+
+      {/* Fullscreen fade overlay for the loop transition */}
+      <div className="loop-fade-overlay" id="loop-overlay"></div>
     </>
   );
 }

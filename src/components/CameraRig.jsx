@@ -14,9 +14,9 @@ const snapPoints = [
   11 / 16,      // Title 1
   12 / 16,      // Title 2
   13 / 16,      // Title 3
-  14 / 16,      // Title 4
-  15 / 16,      // Title 5 (Klarheit)
-  1.0           // End
+  14 / 16,      // Title 4 (04 Entscheiden)
+  15 / 16,      // Vortex Mid-Flight
+  1.0           // End (Logo Complete)
 ];
 
 const lookAtKeyframes = [
@@ -29,8 +29,8 @@ const lookAtKeyframes = [
   { camZ: -120.0, target: new THREE.Vector3(0, -1, -130) }, // Title 2
   { camZ: -135.0, target: new THREE.Vector3(0, -1, -145) }, // Title 3
   { camZ: -150.0, target: new THREE.Vector3(0, -1, -160) }, // Title 4
-  { camZ: -170.0, target: new THREE.Vector3(0, -1, -180) }, // Title 5 (Klarheit)
-  { camZ: -190.0, target: new THREE.Vector3(0, -1, -205) }, // End (looking straight ahead past Klarheit)
+  { camZ: -170.0, target: new THREE.Vector3(0, -1, -180) }, // Morph Vortex Mid-Flight
+  { camZ: -190.0, target: new THREE.Vector3(0, -1, -205) }, // End
 ];
 
 // Calculates a stable, linear-interpolated focus target for the camera based on its Z position.
@@ -65,6 +65,18 @@ export default function CameraRig({ activeCard }) {
   const currentPosition = useRef(new THREE.Vector3(0, 1, 20));
   const currentLookAt = useRef(new THREE.Vector3(0, -4, -20));
   const prevIdealZ = useRef(null);
+
+  // Loop transition state refs
+  const isLooping = useRef(false);
+  const loopStartTime = useRef(0);
+  const loopStartPos = useRef(new THREE.Vector3());
+  const loopStartLookAt = useRef(new THREE.Vector3());
+  const loopStartUp = useRef(new THREE.Vector3());
+
+  // Refs to capture camera state in useFrame for access in the event listener closures
+  const cameraPosRef = useRef(new THREE.Vector3());
+  const cameraLookAtRef = useRef(new THREE.Vector3());
+  const cameraUpRef = useRef(new THREE.Vector3());
 
   // Define a simplified, wobblying-free cinematic camera path
   const curve = new THREE.CatmullRomCurve3([
@@ -104,6 +116,23 @@ export default function CameraRig({ activeCard }) {
     // Touch swipe variables
     let touchStartY = 0;
 
+    const triggerLoopTransition = (now) => {
+      if (isLooping.current) return;
+      isLooping.current = true;
+      loopStartTime.current = now;
+      lastScrollTime.current = now + 1500; // prevent scrolling during loop transition
+
+      // Capture starting camera state for interpolation
+      loopStartPos.current.copy(cameraPosRef.current);
+      loopStartLookAt.current.copy(cameraLookAtRef.current);
+      loopStartUp.current.copy(cameraUpRef.current);
+
+      const overlay = document.getElementById('loop-overlay');
+      if (overlay) {
+        overlay.classList.add('active');
+      }
+    };
+
     const handleWheel = (e) => {
       e.preventDefault();
       const now = Date.now();
@@ -115,13 +144,20 @@ export default function CameraRig({ activeCard }) {
 
       let changed = false;
       if (delta > 0) {
-        // Scroll down -> go next stage (wrap if past end)
-        activeStage.current = (activeStage.current + 1) % snapPoints.length;
-        changed = true;
+        // Scroll down
+        if (activeStage.current < snapPoints.length - 1) {
+          activeStage.current = activeStage.current + 1;
+          changed = true;
+        } else {
+          // At the end, scrolling down triggers the loop!
+          triggerLoopTransition(now);
+        }
       } else {
-        // Scroll up -> go previous stage (wrap if past start)
-        activeStage.current = (activeStage.current - 1 + snapPoints.length) % snapPoints.length;
-        changed = true;
+        // Scroll up -> clamp to start
+        if (activeStage.current > 0) {
+          activeStage.current = activeStage.current - 1;
+          changed = true;
+        }
       }
 
       if (changed) {
@@ -154,13 +190,20 @@ export default function CameraRig({ activeCard }) {
 
       let changed = false;
       if (diffY > 0) {
-        // Swipe up -> scroll down -> go next stage (wrap if past end)
-        activeStage.current = (activeStage.current + 1) % snapPoints.length;
-        changed = true;
+        // Swipe up -> scroll down
+        if (activeStage.current < snapPoints.length - 1) {
+          activeStage.current = activeStage.current + 1;
+          changed = true;
+        } else {
+          // At the end, swiping down triggers the loop!
+          triggerLoopTransition(now);
+        }
       } else {
-        // Swipe down -> scroll up -> go previous stage (wrap if past start)
-        activeStage.current = (activeStage.current - 1 + snapPoints.length) % snapPoints.length;
-        changed = true;
+        // Swipe down -> scroll up -> clamp to start
+        if (activeStage.current > 0) {
+          activeStage.current = activeStage.current - 1;
+          changed = true;
+        }
       }
 
       if (changed) {
@@ -213,6 +256,60 @@ export default function CameraRig({ activeCard }) {
   }, [scroll, activeCard]);
 
   useFrame((state, delta) => {
+    // Handle camera looping transition
+    if (isLooping.current) {
+      const elapsed = (Date.now() - loopStartTime.current) / 1000.0;
+      const progress = Math.min(1.0, elapsed);
+
+      // Fly camera forward/downward along -Z and Y into the starfield
+      const targetPos = new THREE.Vector3(0, 5.0, -200.0);
+      const idealPosition = new THREE.Vector3().lerpVectors(loopStartPos.current, targetPos, progress);
+
+      const targetLookAt = new THREE.Vector3(0, -10.0, -250.0);
+      const idealLookAt = new THREE.Vector3().lerpVectors(loopStartLookAt.current, targetLookAt, progress);
+
+      const targetUp = new THREE.Vector3(0, 1, 0);
+      const upVector = new THREE.Vector3().lerpVectors(loopStartUp.current, targetUp, progress).normalize();
+
+      state.camera.position.copy(idealPosition);
+      state.camera.up.copy(upVector);
+      state.camera.lookAt(idealLookAt);
+
+      currentPosition.current.copy(idealPosition);
+      currentLookAt.current.copy(idealLookAt);
+
+      if (progress >= 1.0) {
+        // Transition fully complete (screen is black): reset scroll and stage instantly
+        const el = scroll.el;
+        if (el) {
+          el.scrollTop = 0;
+        }
+        activeStage.current = 0;
+        isLooping.current = false;
+
+        // Reset scroll offsets instantly to prevent Drei from damping/animating backwards
+        scroll.offset = 0;
+        scroll.current = 0;
+
+        // Reset camera positions instantly to prevent dampening/animating backwards
+        currentPosition.current.set(0, 1, 20);
+        currentLookAt.current.set(0, -4, -20);
+        prevIdealZ.current = null;
+
+        // Fade back in
+        const overlay = document.getElementById('loop-overlay');
+        if (overlay) {
+          overlay.classList.remove('active');
+        }
+      }
+
+      // Capture parameters
+      cameraPosRef.current.copy(state.camera.position);
+      cameraUpRef.current.copy(state.camera.up);
+      cameraLookAtRef.current.copy(currentLookAt.current);
+      return;
+    }
+
     // scroll.offset goes from 0 to 1
     const rawOffset = scroll.offset;
     const t = isNaN(rawOffset) || !isFinite(rawOffset) ? 0 : rawOffset;
@@ -244,7 +341,13 @@ export default function CameraRig({ activeCard }) {
     } else {
       if (t >= 11/16) {
         // Locked static position looking straight down!
-        idealPosition = new THREE.Vector3(0, 6, -115);
+        let cameraY = 6.0;
+        if (t > 14/16) {
+          const factor = (t - 14/16) / (1.0 - 14/16);
+          // Dolly out vertically: increase Y from 6.0 to 38.0
+          cameraY = 6.0 + factor * 32.0;
+        }
+        idealPosition = new THREE.Vector3(0, cameraY, -115);
         idealLookAt = new THREE.Vector3(0, -10, -115);
         upVector.set(0, 0, -1); // Camera's head points along -Z (forward) when looking down
       } else {
@@ -289,6 +392,11 @@ export default function CameraRig({ activeCard }) {
     state.camera.position.copy(currentPosition.current);
     state.camera.up.copy(upVector); // Apply smooth camera orientation up-vector
     state.camera.lookAt(currentLookAt.current);
+
+    // Capture camera parameters for loop transition starters
+    cameraPosRef.current.copy(state.camera.position);
+    cameraUpRef.current.copy(state.camera.up);
+    cameraLookAtRef.current.copy(currentLookAt.current);
   });
 
   return null;

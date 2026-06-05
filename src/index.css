@@ -421,3 +421,22 @@ html, body, #root {
   border-color: var(--champagne);
   color: var(--champagne);
 }
+
+/* Fullscreen loop fade transition overlay */
+.loop-fade-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: #08090b; /* matches the graphite background */
+  z-index: 99999; /* overlay on top of all UI elements */
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 1.0s cubic-bezier(0.445, 0.05, 0.55, 0.95); /* smooth easing fade */
+  will-change: opacity;
+}
+
+.loop-fade-overlay.active {
+  opacity: 1;
+}
