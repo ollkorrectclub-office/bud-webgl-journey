@@ -85,14 +85,8 @@ export default function CameraRig({ activeCard }) {
     new THREE.Vector3(3, -4, -71.0),   // Linger in front of Card 4 (9.0 units away)
     new THREE.Vector3(3, -4, -80),     // Pass through Card 4
     
-    new THREE.Vector3(3, -4, -98.4),   // Keep straight in Card 4 lane to stabilize spline tension before centering
-    
-    new THREE.Vector3(0, -1, -105),    // Title 1 Snap (10 units in front of -115)
-    new THREE.Vector3(0, -1, -120),    // Title 2 Snap (10 units in front of -130)
-    new THREE.Vector3(0, -1, -135),    // Title 3 Snap (10 units in front of -145)
-    new THREE.Vector3(0, -1, -150),    // Title 4 Snap (10 units in front of -160)
-    new THREE.Vector3(0, -1, -170),    // Title 5 Snap (10 units in front of -180)
-    new THREE.Vector3(0, -1, -190),    // End
+    new THREE.Vector3(1.5, 1, -98),    // Center, elevate and travel a bit without text
+    new THREE.Vector3(0, 6, -115),     // Reach top view static camera position!
   ]);
 
   useEffect(() => {
@@ -193,7 +187,7 @@ export default function CameraRig({ activeCard }) {
         startBtnContainer.removeEventListener('click', handleStart);
       }
     };
-  }, [scroll]);
+  }, [scroll, activeCard]);
 
   useFrame((state, delta) => {
     // scroll.offset goes from 0 to 1
@@ -216,14 +210,38 @@ export default function CameraRig({ activeCard }) {
     // Calculate exactly where the camera SHOULD be based on the scroll position
     let idealPosition, idealLookAt;
     
+    // Calculate the camera's up vector based on scroll progress
+    const upVector = new THREE.Vector3(0, 1, 0);
+    
     if (activeCard) {
       // Lock camera in front of the active card
       const cp = activeCard.position;
       idealPosition = new THREE.Vector3(cp[0], cp[1], cp[2] + 9.0);
       idealLookAt = new THREE.Vector3(cp[0], cp[1], cp[2]);
     } else {
-      idealPosition = curve.getPoint(t);
-      idealLookAt = getFocusTarget(idealPosition.z);
+      if (t >= 11/16) {
+        // Locked static position looking straight down!
+        idealPosition = new THREE.Vector3(0, 6, -115);
+        idealLookAt = new THREE.Vector3(0, -10, -115);
+        upVector.set(0, 0, -1); // Camera's head points along -Z (forward) when looking down
+      } else {
+        // Map scroll range t < 11/16 to curve progress
+        const curveProgress = Math.min(1.0, t / (11/16));
+        idealPosition = curve.getPoint(curveProgress);
+        
+        if (t >= 8/16) {
+          // Transition: tilt camera down!
+          const factor = (t - 8/16) / (11/16 - 8/16);
+          const startLook = getFocusTarget(idealPosition.z);
+          const endLook = new THREE.Vector3(0, -10, -115);
+          idealLookAt = new THREE.Vector3().lerpVectors(startLook, endLook, factor);
+          
+          // Interpolate camera up from [0, 1, 0] to [0, 0, -1]
+          upVector.set(0, 1 - factor, -factor).normalize();
+        } else {
+          idealLookAt = getFocusTarget(idealPosition.z);
+        }
+      }
     }
 
     // If the Z jump between frames is very large, teleport instantly!
@@ -246,6 +264,7 @@ export default function CameraRig({ activeCard }) {
 
     // Apply the smoothed vectors directly to the camera
     state.camera.position.copy(currentPosition.current);
+    state.camera.up.copy(upVector); // Apply smooth camera orientation up-vector
     state.camera.lookAt(currentLookAt.current);
   });
 
