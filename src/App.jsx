@@ -30,10 +30,10 @@ export default function App() {
     setActiveCard(card);
     setShowDetail(false);
     
-    // Wait for the card fade out to be mostly complete (450ms) before fading in the detail overlay
+    // Wait for the card fade out to be fully complete (800ms) before popping up the detail overlay
     setTimeout(() => {
       setShowDetail(true);
-    }, 450);
+    }, 800);
   }, []);
 
   const handleShatterComplete = useCallback(() => {
