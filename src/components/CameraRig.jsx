@@ -2,6 +2,8 @@ import React, { useRef, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useScroll } from '@react-three/drei';
 import * as THREE from 'three';
+import gsap from 'gsap';
+
 
 const snapPoints = [
   0,            // Start
@@ -125,7 +127,14 @@ export default function CameraRig({ activeCard }) {
       if (changed) {
         lastScrollTime.current = now;
         const maxScroll = el.scrollHeight - el.clientHeight;
-        el.scrollTop = snapPoints[activeStage.current] * maxScroll;
+        const targetScroll = snapPoints[activeStage.current] * maxScroll;
+        
+        gsap.to(el, {
+          scrollTop: targetScroll,
+          duration: 0.9,
+          ease: "power2.out",
+          overwrite: "auto"
+        });
       }
     };
 
@@ -157,7 +166,14 @@ export default function CameraRig({ activeCard }) {
       if (changed) {
         lastScrollTime.current = now;
         const maxScroll = el.scrollHeight - el.clientHeight;
-        el.scrollTop = snapPoints[activeStage.current] * maxScroll;
+        const targetScroll = snapPoints[activeStage.current] * maxScroll;
+        
+        gsap.to(el, {
+          scrollTop: targetScroll,
+          duration: 0.9,
+          ease: "power2.out",
+          overwrite: "auto"
+        });
       }
     };
 
@@ -168,7 +184,14 @@ export default function CameraRig({ activeCard }) {
       activeStage.current = 1; // Snap directly to Card 1
       lastScrollTime.current = now;
       const maxScroll = el.scrollHeight - el.clientHeight;
-      el.scrollTop = snapPoints[activeStage.current] * maxScroll;
+      const targetScroll = snapPoints[activeStage.current] * maxScroll;
+      
+      gsap.to(el, {
+        scrollTop: targetScroll,
+        duration: 1.2,
+        ease: "power2.out",
+        overwrite: "auto"
+      });
     };
     if (startBtnContainer) {
       startBtnContainer.addEventListener('click', handleStart);
