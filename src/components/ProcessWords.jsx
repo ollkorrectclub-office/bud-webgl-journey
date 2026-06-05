@@ -34,21 +34,23 @@ function AscendingWord({ index, text, fontSize = 1.5, color = "#F4F0E8", letterS
     else {
       const tTitles = (t - 11/16) / (1 - 11/16); // progresses from 0 to 1
 
-      // Title index 0 is centered at tTitles = 0.0 (Snap Point 5)
-      // Title index 1 is centered at tTitles = 0.25 (Snap Point 6)
-      // Title index 2 is centered at tTitles = 0.50 (Snap Point 7)
-      // Title index 3 is centered at tTitles = 0.75 (Snap Point 8)
-      // Title index 4 is centered at tTitles = 1.00 (Snap Point 9)
-      const targetProgress = index * 0.25;
+      // Title snap points are separated by exactly 0.20 progress intervals in tTitles space:
+      // Snap Point 5 (Title 0): tTitles = 0.0
+      // Snap Point 6 (Title 1): tTitles = 0.20
+      // Snap Point 7 (Title 2): tTitles = 0.40
+      // Snap Point 8 (Title 3): tTitles = 0.60
+      // Snap Point 9 (Title 4): tTitles = 0.80
+      // Snap Point 10 (End): tTitles = 1.00
+      const targetProgress = index * 0.20;
       const dx = tTitles - targetProgress;
 
-      if (dx < -0.25) {
+      if (dx < -0.20) {
         // Future title: hidden deep at the waves
         curY = -9.5;
         opacity = 0;
       } else if (dx < 0) {
         // Entering title: flies from waves to center in the SECOND half of the scroll step
-        const localT = (dx + 0.25) / 0.25; // 0 to 1 progress between snap points
+        const localT = (dx + 0.20) / 0.20; // 0 to 1 progress between snap points
         if (localT <= 0.5) {
           // First half: remain completely hidden so it doesn't overlap the departing title
           curY = -9.5;
@@ -59,9 +61,9 @@ function AscendingWord({ index, text, fontSize = 1.5, color = "#F4F0E8", letterS
           curY = -9.5 + pct * 2.0; // Rises from Y = -9.5 to Y = -7.5
           opacity = pct;
         }
-      } else if (dx <= 0.25) {
+      } else if (dx <= 0.20) {
         // Departing title: flies from center to camera lens in the FIRST half of the scroll step
-        const localT = dx / 0.25; // 0 to 1 progress between snap points
+        const localT = dx / 0.20; // 0 to 1 progress between snap points
         if (localT <= 0.5) {
           // First half: fly up and fade out
           const pct = localT / 0.5; // 0 to 1 progress within first half
