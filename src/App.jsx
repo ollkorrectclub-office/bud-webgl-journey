@@ -1,6 +1,5 @@
 import React, { Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { ScrollControls, Scroll, Html } from '@react-three/drei';
 import DataField from './components/DataField';
 import CameraRig from './components/CameraRig';
 import GlassCard3D from './components/GlassCard3D';
@@ -21,44 +20,42 @@ export default function App() {
         <fog attach="fog" args={['#08090b', 20, 140]} />
         
         <Suspense fallback={null}>
-          <ScrollControls pages={20} damping={0.2} distance={1} infinite>
-            <CameraRig />
-            
-            {/* The continuous living field */}
-            <DataField />
-            
-            {/* Cards discovered along the path (Now completely native 3D WebGL objects!) */}
-            <GlassCard3D 
-              position={[-4, -3, -20]} 
-              number="01" 
-              title="Verstehen" 
-              description="Bedürfnisse, Erwartungen und Verhalten erkennen." 
-            />
-            
-            <GlassCard3D 
-              position={[4, -3, -45]} 
-              number="02" 
-              title="Märkte analysieren" 
-              description="Chancen, Trends und Veränderungen frühzeitig verstehen." 
-            />
-            
-            <GlassCard3D 
-              position={[-4, -3, -70]} 
-              number="03" 
-              title="Ideen validieren" 
-              description="Potenziale prüfen. Strategien schärfen." 
-            />
+          <CameraRig />
+          
+          {/* The continuous living field */}
+          <DataField />
+          
+          {/* Cards discovered along the path (Now completely native 3D WebGL objects!) */}
+          <GlassCard3D 
+            position={[-4, -3, -20]} 
+            number="01" 
+            title="Verstehen" 
+            description="Bedürfnisse, Erwartungen und Verhalten erkennen." 
+          />
+          
+          <GlassCard3D 
+            position={[4, -3, -45]} 
+            number="02" 
+            title="Märkte analysieren" 
+            description="Chancen, Trends und Veränderungen frühzeitig verstehen." 
+          />
+          
+          <GlassCard3D 
+            position={[-4, -3, -70]} 
+            number="03" 
+            title="Ideen validieren" 
+            description="Potenziale prüfen. Strategien schärfen." 
+          />
 
-            <GlassCard3D 
-              position={[4, -3, -95]} 
-              number="04" 
-              title="Lösungen entwickeln" 
-              description="Konzepte in funktionale und messbare Ergebnisse verwandeln." 
-            />
-            
-            {/* Words discovered ascending */}
-            <ProcessWords />
-          </ScrollControls>
+          <GlassCard3D 
+            position={[4, -3, -95]} 
+            number="04" 
+            title="Lösungen entwickeln" 
+            description="Konzepte in funktionale und messbare Ergebnisse verwandeln." 
+          />
+          
+          {/* Words discovered ascending */}
+          <ProcessWords />
           
           <PostProcessing />
         </Suspense>

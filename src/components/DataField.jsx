@@ -1,6 +1,5 @@
 import React, { useMemo, useRef, useEffect } from 'react';
-import { useFrame } from '@react-three/fiber';
-import { useScroll } from '@react-three/drei';
+import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 
 const GRID_X = 600;
@@ -11,7 +10,7 @@ export default function DataField() {
   const pointsGeometryRef = useRef();
   const pointsMatRef = useRef();
   const dustMatRef = useRef();
-  const scroll = useScroll();
+  const { camera } = useThree();
 
   const { positions, colors, sizes, intensities, customLogoTarget, customLogoColor, dustPositions, version } = useMemo(() => {
     const spacingX = 0.6;
@@ -342,7 +341,7 @@ export default function DataField() {
         float totalSpark = max(finalSparkZ, finalSparkX);
 
         // Brilliant cyan-white electricity burst for the Bloom pass
-        vec3 elecColor = vec3(0.2, 0.8, 1.8) * 3.0; 
+        vec3 elecColor = vec3(1.8, 0.2, 1.0) * 2.5; // Electric Pink
         
         finalColor += elecColor * totalSpark;
 
@@ -396,14 +395,17 @@ export default function DataField() {
 
   useFrame((state) => {
     const time = state.clock.getElapsedTime();
-    const rawScroll = scroll.offset || 0;
+    // Convert physical camera position into a seamless 0-1 cycle!
+    // The tunnel starts at Z=120 and wraps at Z=-230 (total length 350)
+    let cycle = (120 - state.camera.position.z) / 350;
+    cycle = cycle % 1.0;
+    if (cycle < 0) cycle += 1.0;
     
-    // Convert linear scroll into a cinematic 3-stage morph sequence:
+    // Convert linear cycle into a cinematic 3-stage morph sequence:
     // 0.82 -> 0.88 : Fly up from waves into the logo
     // 0.88 -> 0.94 : Hold perfectly in the logo shape as camera flies towards it
     // 0.94 -> 0.99 : Dissolve back into waves seamlessly as the loop completes
     let morph = 0;
-    const cycle = rawScroll % 1.0;
     
     if (cycle > 0.80 && cycle <= 0.88) {
        morph = (cycle - 0.80) / 0.08; 

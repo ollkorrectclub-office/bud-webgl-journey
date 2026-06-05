@@ -37,16 +37,15 @@ export default function GlassCard3D({ position, rotation, number, title, descrip
       const euclideanDist = Math.sqrt(dx * dx + dy * dy + dz * dz);
       
       // SHORT FOG EFFECT: Cards emerge from the darkness one by one as the drone approaches.
-      // Cards are completely invisible if > 30 units away to preserve the empty Hero section.
-      // They begin fading in gracefully at 30 units, reaching full brightness at 15 units.
+      // Cards begin fading in gracefully at 35 units, reaching full brightness at 20 units.
       let targetOpacity = 0;
-      if (euclideanDist < 30) {
-        targetOpacity = 1.0 - Math.max(0, (euclideanDist - 15) / 15.0);
+      if (euclideanDist < 35) {
+        targetOpacity = 1.0 - Math.max(0, (euclideanDist - 20) / 15.0);
       }
       
       // Fade out as the camera physically passes the card on the Z axis
-      if (dz < -5) {
-        targetOpacity = 1.0 - Math.max(0, -(dz + 5) / 5.0);
+      if (dz < -3) {
+        targetOpacity = 1.0 - Math.max(0, -(dz + 3) / 5.0);
       }
       
       targetOpacity = Math.max(0, Math.min(1, targetOpacity));
