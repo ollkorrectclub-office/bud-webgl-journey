@@ -1,6 +1,6 @@
 import React, { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Text } from '@react-three/drei';
+import { Text, MeshTransmissionMaterial } from '@react-three/drei';
 import * as THREE from 'three';
 
 // Custom geometry for a perfect flat rounded rectangle
@@ -142,7 +142,7 @@ export default function GlassCard3D({ position, rotation, number, title, descrip
           // Glass panel has max opacity of 0.70, glass edge highlight has max opacity of 0.12, everything else is 1.0
           const maxOpacity = child.material.name === 'glassEdgeMaterial' 
             ? 0.12 
-            : (child.material.type === 'MeshPhysicalMaterial' ? 0.70 : 1.0);
+            : (child.material.name === 'glassPanelMaterial' ? 0.70 : 1.0);
           child.material.opacity = targetOpacity * maxOpacity;
           // Hide completely when invisible to prevent ghosting from refraction
           child.visible = targetOpacity > 0.01;
@@ -163,16 +163,19 @@ export default function GlassCard3D({ position, rotation, number, title, descrip
     <group ref={groupRef} position={position} rotation={rotation || [0, 0, 0]}>
       {/* The Dark Glass Panel */}
       <mesh geometry={geometry}>
-        <meshPhysicalMaterial 
+        <MeshTransmissionMaterial 
+          name="glassPanelMaterial"
           color="#0a0c10"
-          transmission={0.0}
-          opacity={0.70}
+          transmission={0.6} // High transmission to allow blurred background elements to pass through
+          opacity={0.70} // Maintain the requested 70% opacity
           transparent
-          metalness={0.2}
-          roughness={0.05}
+          roughness={0.25} // Surface roughness (creates the beautiful frosted blur of the background waves!)
+          thickness={1.5} // Physical refraction thickness
+          ior={1.5} // Index of Refraction for realistic glass bending
+          chromaticAberration={0.02} // Subtle chromatic aberration for a premium refractive feel
+          anisotropy={0.1}
           clearcoat={1.0}
           clearcoatRoughness={0.05}
-          reflectivity={0.9}
         />
         
         {/* Subtle glass edge highlight (white/champagne) to enhance the glassmorphism look */}
