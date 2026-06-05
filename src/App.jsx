@@ -28,11 +28,11 @@ export default function App() {
 
   const handleCardEnter = useCallback((card) => {
     setActiveCard(card);
-    setShowDetail(false);
+    setShowDetail(true); // Mount and fade in the detail page immediately on click
   }, []);
 
   const handleShatterComplete = useCallback(() => {
-    setShowDetail(true);
+    // Detail page is already mounted
   }, []);
 
   const handleBack = useCallback(() => {
