@@ -1,187 +1,137 @@
 import React, { useRef, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
+import { useScroll } from '@react-three/drei';
 import * as THREE from 'three';
-import gsap from 'gsap';
+
+const snapPoints = [
+  0,            // Start
+  2 / 16,       // Card 1
+  4 / 16,       // Card 2
+  6 / 16,       // Card 3
+  8 / 16,       // Card 4
+  11 / 16,      // Title 1
+  12 / 16,      // Title 2
+  13 / 16,      // Title 3
+  14 / 16,      // Title 4
+  15 / 16,      // Title 5 (Klarheit)
+  1.0           // End
+];
+
+const lookAtKeyframes = [
+  { camZ: 20, target: new THREE.Vector3(0, -4, -20) },      // Start (looking ahead at Card 1)
+  { camZ: -11.0, target: new THREE.Vector3(-3, -4, -20) },  // Card 1
+  { camZ: -31.0, target: new THREE.Vector3(3, -4, -40) },   // Card 2
+  { camZ: -51.0, target: new THREE.Vector3(-3, -4, -60) },  // Card 3
+  { camZ: -71.0, target: new THREE.Vector3(3, -4, -80) },   // Card 4
+  { camZ: -105.0, target: new THREE.Vector3(0, -1, -115) }, // Title 1
+  { camZ: -120.0, target: new THREE.Vector3(0, -1, -130) }, // Title 2
+  { camZ: -135.0, target: new THREE.Vector3(0, -1, -145) }, // Title 3
+  { camZ: -150.0, target: new THREE.Vector3(0, -1, -160) }, // Title 4
+  { camZ: -170.0, target: new THREE.Vector3(0, -1, -180) }, // Title 5 (Klarheit)
+  { camZ: -190.0, target: new THREE.Vector3(0, -1, -205) }, // End (looking straight ahead past Klarheit)
+];
+
+// Calculates a stable, linear-interpolated focus target for the camera based on its Z position.
+// This prevents camera wobblyness caused by curve tangents and keeps cards/titles in screen center.
+function getFocusTarget(camZ) {
+  if (camZ >= lookAtKeyframes[0].camZ) {
+    return lookAtKeyframes[0].target.clone();
+  }
+  if (camZ <= lookAtKeyframes[lookAtKeyframes.length - 1].camZ) {
+    return lookAtKeyframes[lookAtKeyframes.length - 1].target.clone();
+  }
+
+  for (let i = 0; i < lookAtKeyframes.length - 1; i++) {
+    const k1 = lookAtKeyframes[i];
+    const k2 = lookAtKeyframes[i + 1];
+    if (camZ <= k1.camZ && camZ >= k2.camZ) {
+      const factor = (k1.camZ - camZ) / (k1.camZ - k2.camZ);
+      return new THREE.Vector3().lerpVectors(k1.target, k2.target, factor);
+    }
+  }
+
+  return new THREE.Vector3(0, -1, camZ - 15);
+}
 
 export default function CameraRig() {
+  const scroll = useScroll();
   const activeStage = useRef(0);
+  const lastScrollTime = useRef(0);
+  const cooldown = 1000; // ms (gives a nice travel time before enabling the next scroll)
   
-  // The exact fraction of the 350-unit journey (Z=120 to Z=-230)
-  // Adjusted to stop the camera exactly 8 units IN FRONT of each card/title!
-  // This ensures the cards are extremely readable when you add text, completely filling the view comfortably.
-  const baseTValues = [
-    110 / 350,   // Stage 0: Hero (Z=10)
-    132 / 350,   // Stage 1: Card 1 (Z=-12) | Distance to Card Z=-20 is exactly 8
-    157 / 350,   // Stage 2: Card 2 (Z=-37) | Distance to Card Z=-45 is exactly 8
-    182 / 350,   // Stage 3: Card 3 (Z=-62) | Distance to Card Z=-70 is exactly 8
-    207 / 350,   // Stage 4: Card 4 (Z=-87) | Distance to Card Z=-95 is exactly 8
-    232 / 350,   // Stage 5: Title 1 (Z=-112) | Distance to Title Z=-120 is exactly 8
-    257 / 350,   // Stage 6: Title 2 (Z=-137) | Distance to Title Z=-145 is exactly 8
-    282 / 350,   // Stage 7: Title 3 (Z=-162) | Distance to Title Z=-170 is exactly 8
-    307 / 350,   // Stage 8: Title 4 (Z=-187) | Distance to Title Z=-195 is exactly 8
-    332 / 350,   // Stage 9: Title 5 (Z=-212) | Distance to Title Z=-220 is exactly 8
-    390 / 350,   // Stage 10: Logo Morph (Z=80) 
-    440 / 350    // Stage 11: Logo Flythrough (Z=30)
-  ];
-  
-  // 1D timeline for GSAP buttery smooth travel 
-  const smoothT = useRef({ val: baseTValues[0] });
-  
-  const currentLookAt = useRef(new THREE.Vector3(0, -3.0, 0));
+  // Track current state separately from the ideal state to allow ultra-smooth lerping
+  const currentPosition = useRef(new THREE.Vector3(0, 1, 20));
+  const currentLookAt = useRef(new THREE.Vector3(0, -4, -20));
   const prevIdealZ = useRef(null);
 
-  // Exact X-coordinate keyframes for flawless, wobble-free centering!
-  const positionKeyframes = [
-    { z: 120, x: 0 },
-    { z: 10, x: 0 }, // Hero
-    { z: -12, x: -4 }, // Card 1 (Centers exactly on X=-4)
-    { z: -37, x: 4 }, // Card 2 (Centers exactly on X=4)
-    { z: -62, x: -4 }, // Card 3
-    { z: -87, x: 4 }, // Card 4
-    { z: -112, x: -4 }, // Title 1
-    { z: -137, x: 4 }, // Title 2
-    { z: -162, x: -4 }, // Title 3
-    { z: -187, x: 4 }, // Title 4
-    { z: -212, x: -4 }, // Title 5
-    { z: -230, x: 0 }, 
-    { z: -270, x: 0 }
-  ];
-
-  // --- PURE MATHEMATICAL TRAJECTORY ENGINE ---
-  const getIdealPosition = (t) => {
-    const z = 120 - t * 350;
+  // Define a simplified, wobblying-free cinematic camera path
+  const curve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(0, 1, 20),       // Hero (Wide shot, starting slightly elevated)
+    new THREE.Vector3(0, -4, 0),       // Entering the field at card height (Y = -4, Z = 0)
     
-    let x = 0;
-    for (let i = 0; i < positionKeyframes.length - 1; i++) {
-       const k1 = positionKeyframes[i];
-       const k2 = positionKeyframes[i+1];
-       if (z <= k1.z && z >= k2.z) {
-          const factor = (k1.z - z) / (k1.z - k2.z);
-          // Pure linear interpolation. Since Z is animated by GSAP power3.inOut, 
-          // this creates a flawless, perfectly straight diagonal flight path 
-          // that naturally accelerates/decelerates! No more swerving or 'S-curves'.
-          x = k1.x + (k2.x - k1.x) * factor;
-          break;
-       }
-    }
+    // Card 1 is at (-3, -4, -20)
+    new THREE.Vector3(-3, -4, -11.0),  // Linger in front of Card 1 (9.0 units away)
+    new THREE.Vector3(-3, -4, -20),    // Pass through Card 1
     
-    // Y is locked to -3.0 so the camera is perfectly level with the center of the cards.
-    return new THREE.Vector3(x, -3.0, z);
-  };
-
-  // The camera turns its head to look directly at the NEXT card while traveling,
-  // creating a completely natural "flying straight to" sensation.
-  const lookAtKeyframes = [
-    { z: 120, target: new THREE.Vector3(0, -3.0, 0) },
-    { z: 10, target: new THREE.Vector3(0, -3.0, -20) }, // Hero
+    // Card 2 is at (3, -4, -40)
+    new THREE.Vector3(3, -4, -31.0),   // Linger in front of Card 2 (9.0 units away)
+    new THREE.Vector3(3, -4, -40),     // Pass through Card 2
     
-    { z: -12, target: new THREE.Vector3(-4, -3.0, -20) }, // Parked at Card 1
-    { z: -15, target: new THREE.Vector3(4, -3.0, -45) },  // Turn head to Card 2
+    // Card 3 is at (-3, -4, -60)
+    new THREE.Vector3(-3, -4, -51.0),  // Linger in front of Card 3 (9.0 units away)
+    new THREE.Vector3(-3, -4, -60),    // Pass through Card 3
     
-    { z: -37, target: new THREE.Vector3(4, -3.0, -45) },  // Parked at Card 2
-    { z: -40, target: new THREE.Vector3(-4, -3.0, -70) }, // Turn head to Card 3
-
-    { z: -62, target: new THREE.Vector3(-4, -3.0, -70) }, // Parked at Card 3
-    { z: -65, target: new THREE.Vector3(4, -3.0, -95) },  // Turn head to Card 4
-
-    { z: -87, target: new THREE.Vector3(4, -3.0, -95) },  // Parked at Card 4
-    { z: -90, target: new THREE.Vector3(-4, -3.0, -120) },// Turn head to Title 1
-
-    { z: -112, target: new THREE.Vector3(-4, -3.0, -120) },// Parked at Title 1
-    { z: -115, target: new THREE.Vector3(4, -3.0, -145) }, // Turn head to Title 2
-
-    { z: -137, target: new THREE.Vector3(4, -3.0, -145) }, // Parked at Title 2
-    { z: -140, target: new THREE.Vector3(-4, -3.0, -170) },// Turn head to Title 3
-
-    { z: -162, target: new THREE.Vector3(-4, -3.0, -170) },// Parked at Title 3
-    { z: -165, target: new THREE.Vector3(4, -3.0, -195) }, // Turn head to Title 4
-
-    { z: -187, target: new THREE.Vector3(4, -3.0, -195) }, // Parked at Title 4
-    { z: -190, target: new THREE.Vector3(-4, -3.0, -220) },// Turn head to Title 5
-
-    { z: -212, target: new THREE.Vector3(-4, -3.0, -220) },// Parked at Title 5
-    { z: -215, target: new THREE.Vector3(0, -3.0, -270) }, // Turn head to Logo
+    // Card 4 is at (3, -4, -80)
+    new THREE.Vector3(3, -4, -71.0),   // Linger in front of Card 4 (9.0 units away)
+    new THREE.Vector3(3, -4, -80),     // Pass through Card 4
     
-    { z: -230, target: new THREE.Vector3(0, -3.0, -270) }, 
-    { z: -270, target: new THREE.Vector3(0, -3.0, -270) }
-  ];
-
-  const getIdealLookAt = (camZ) => {
-     let localZ = camZ;
-     for (let i = 0; i < lookAtKeyframes.length - 1; i++) {
-        const k1 = lookAtKeyframes[i];
-        const k2 = lookAtKeyframes[i+1];
-        if (localZ <= k1.z && localZ >= k2.z) {
-           const factor = (k1.z - localZ) / (k1.z - k2.z);
-           return new THREE.Vector3().lerpVectors(k1.target, k2.target, factor);
-        }
-     }
-     return new THREE.Vector3(0, -3.0, camZ - 8);
-  };
+    new THREE.Vector3(3, -4, -98.4),   // Keep straight in Card 4 lane to stabilize spline tension before centering
+    
+    new THREE.Vector3(0, -1, -105),    // Title 1 Snap (10 units in front of -115)
+    new THREE.Vector3(0, -1, -120),    // Title 2 Snap (10 units in front of -130)
+    new THREE.Vector3(0, -1, -135),    // Title 3 Snap (10 units in front of -145)
+    new THREE.Vector3(0, -1, -150),    // Title 4 Snap (10 units in front of -160)
+    new THREE.Vector3(0, -1, -170),    // Title 5 Snap (10 units in front of -180)
+    new THREE.Vector3(0, -1, -190),    // End
+  ]);
 
   useEffect(() => {
-    // Hide native scrollbars and prevent manual scrolling completely
-    document.body.style.overflow = 'hidden';
+    const el = scroll.el;
+    if (!el) return;
 
-    let isScrollLocked = false;
-    let scrollTimeout = null;
+    // Reset scroll position to top on mount
+    el.scrollTop = 0;
+
+    // Force hide scrollbars so it looks clean and overrides standard scrollbar scrolling
+    el.style.overflow = 'hidden';
+
+    // Touch swipe variables
     let touchStartY = 0;
 
-    const navigateToNextStage = () => {
-       activeStage.current++;
-       const loop = Math.floor(activeStage.current / 12);
-       const index = activeStage.current % 12;
-       const targetT = baseTValues[index] + loop;
-       
-       gsap.to(smoothT.current, {
-           val: targetT,
-           duration: 1.8, // Slightly longer for luxurious smoothness
-           ease: "power3.inOut",
-           overwrite: true
-       });
-    };
-
-    const navigateToPrevStage = () => {
-       if (activeStage.current > 0) {
-           activeStage.current--;
-           const loop = Math.floor(activeStage.current / 12);
-           const index = activeStage.current % 12;
-           const targetT = baseTValues[index] + loop;
-           
-           gsap.to(smoothT.current, {
-               val: targetT,
-               duration: 1.8,
-               ease: "power3.inOut",
-               overwrite: true
-           });
-       }
-    };
-
-    // --- TRACKPAD MOMENTUM DEBOUNCER ---
-    // This absolutely guarantees that ONE physical scroll movement equals exactly ONE jump.
-    const handleScrollEvent = (delta) => {
-      // Ignore extreme micro-movements (like resting a finger on a Mac trackpad)
-      if (Math.abs(delta) < 3) return;
-
-      // Every significant momentum event resets the lock clock!
-      if (scrollTimeout) clearTimeout(scrollTimeout);
-      
-      scrollTimeout = setTimeout(() => {
-         isScrollLocked = false; // Unlocks when trackpad has been completely physically dead for 80ms
-      }, 80);
-
-      if (isScrollLocked) return;
-
-      // We are unlocked and received a real scroll! Trigger jump!
-      if (delta > 0) navigateToNextStage();
-      else navigateToPrevStage();
-
-      isScrollLocked = true; // Instantly lock it!
-    };
-
     const handleWheel = (e) => {
-      e.preventDefault(); // Stop native scrolling
-      handleScrollEvent(e.deltaY);
+      e.preventDefault();
+      const now = Date.now();
+      if (now - lastScrollTime.current < cooldown) return;
+
+      const delta = e.deltaY;
+      if (Math.abs(delta) < 10) return; // Ignore very small movements (flickering)
+
+      let changed = false;
+      if (delta > 0) {
+        // Scroll down -> go next stage (wrap if past end)
+        activeStage.current = (activeStage.current + 1) % snapPoints.length;
+        changed = true;
+      } else {
+        // Scroll up -> go previous stage (wrap if past start)
+        activeStage.current = (activeStage.current - 1 + snapPoints.length) % snapPoints.length;
+        changed = true;
+      }
+
+      if (changed) {
+        lastScrollTime.current = now;
+        const maxScroll = el.scrollHeight - el.clientHeight;
+        el.scrollTop = snapPoints[activeStage.current] * maxScroll;
+      }
     };
 
     const handleTouchStart = (e) => {
@@ -189,88 +139,104 @@ export default function CameraRig() {
     };
 
     const handleTouchMove = (e) => {
-      e.preventDefault(); 
+      const now = Date.now();
+      if (now - lastScrollTime.current < cooldown) return;
+
       const touchY = e.touches[0].clientY;
       const diffY = touchStartY - touchY;
 
-      if (Math.abs(diffY) < 10) return; // Threshold for touch
+      if (Math.abs(diffY) < 40) return; // Require a minimum swipe distance
 
-      if (scrollTimeout) clearTimeout(scrollTimeout);
-      scrollTimeout = setTimeout(() => {
-         isScrollLocked = false;
-      }, 80);
+      let changed = false;
+      if (diffY > 0) {
+        // Swipe up -> scroll down -> go next stage (wrap if past end)
+        activeStage.current = (activeStage.current + 1) % snapPoints.length;
+        changed = true;
+      } else {
+        // Swipe down -> scroll up -> go previous stage (wrap if past start)
+        activeStage.current = (activeStage.current - 1 + snapPoints.length) % snapPoints.length;
+        changed = true;
+      }
 
-      if (isScrollLocked) return;
-
-      if (diffY > 0) navigateToNextStage();
-      else navigateToPrevStage();
-
-      isScrollLocked = true;
-      touchStartY = touchY; 
+      if (changed) {
+        lastScrollTime.current = now;
+        const maxScroll = el.scrollHeight - el.clientHeight;
+        el.scrollTop = snapPoints[activeStage.current] * maxScroll;
+      }
     };
 
+    // Hook into the hero start button container to begin the journey
     const startBtnContainer = document.querySelector('.hero-btn-container');
     const handleStart = () => {
-      if (activeStage.current === 0) navigateToNextStage();
+      const now = Date.now();
+      activeStage.current = 1; // Snap directly to Card 1
+      lastScrollTime.current = now;
+      const maxScroll = el.scrollHeight - el.clientHeight;
+      el.scrollTop = snapPoints[activeStage.current] * maxScroll;
     };
-    if (startBtnContainer) startBtnContainer.addEventListener('click', handleStart);
+    if (startBtnContainer) {
+      startBtnContainer.addEventListener('click', handleStart);
+    }
 
+    // Attach listeners globally to window so that gestures over DOM overlays are caught
     window.addEventListener('wheel', handleWheel, { passive: false });
     window.addEventListener('touchstart', handleTouchStart, { passive: true });
-    window.addEventListener('touchmove', handleTouchMove, { passive: false });
+    window.addEventListener('touchmove', handleTouchMove, { passive: true });
 
     return () => {
-      document.body.style.overflow = 'auto';
       window.removeEventListener('wheel', handleWheel);
       window.removeEventListener('touchstart', handleTouchStart);
       window.removeEventListener('touchmove', handleTouchMove);
-      if (scrollTimeout) clearTimeout(scrollTimeout);
-      if (startBtnContainer) startBtnContainer.removeEventListener('click', handleStart);
+      if (startBtnContainer) {
+        startBtnContainer.removeEventListener('click', handleStart);
+      }
     };
-  }, []);
+  }, [scroll]);
 
   useFrame((state, delta) => {
-    // Extract the bounded T for actual geometry calculation
-    const finalT = (smoothT.current.val % 1.0 + 1.0) % 1.0;
-    
-    // Optional: Smoothly fade hero text over a longer distance
+    // scroll.offset goes from 0 to 1
+    const rawOffset = scroll.offset;
+    const t = isNaN(rawOffset) || !isFinite(rawOffset) ? 0 : rawOffset;
+
+    // Fade out and blur the hero text quickly before camera travels to Card 1
     const heroText = document.getElementById('hero-text');
     if (heroText) {
-      // smoothT goes from 110/350 (0.314) up.
-      const currentVal = smoothT.current.val;
-      const distanceScrolled = currentVal - baseTValues[0];
+      const scrollFactor = Math.min(1, t / 0.02); // complete blur/fade in first 2% of scroll
+      const opacity = 1 - scrollFactor;
+      const blurVal = scrollFactor * 16;
       
-      let opacity = 1.0;
-      if (distanceScrolled > 0.05) opacity = 0;
-      else if (distanceScrolled > 0) opacity = 1.0 - (distanceScrolled / 0.05);
-      
-      if (finalT > 0.1 && finalT < 0.3) {
-         if (finalT > 0.28) opacity = (finalT - 0.28) / 0.034; 
-         else opacity = 0;
-      }
-
-      heroText.style.opacity = Math.max(0, Math.min(1, opacity)).toString();
-      heroText.style.pointerEvents = opacity > 0.01 ? 'auto' : 'none';
+      heroText.style.opacity = opacity.toString();
+      heroText.style.filter = `blur(${blurVal}px)`;
+      heroText.style.transform = 'translate(-50%, -50%)'; // clean centered overlay without movement
+      heroText.style.pointerEvents = opacity > 0.001 ? 'auto' : 'none';
     }
 
-    // Calculate mathematically perfect trajectory point
-    const idealPosition = getIdealPosition(finalT);
-    const idealLookAt = getIdealLookAt(idealPosition.z);
+    // Calculate exactly where the camera SHOULD be based on the scroll position
+    const idealPosition = curve.getPoint(t);
+    
+    // Calculate exactly where the camera SHOULD be looking based on our focus target
+    const idealLookAt = getFocusTarget(idealPosition.z);
 
-    // --- INFINITE LOOP ROTATION FIX ---
+    // If the Z jump between frames is very large, teleport instantly!
     if (prevIdealZ.current !== null) {
-       if (idealPosition.z - prevIdealZ.current > 175) {
-          currentLookAt.current.z += 350;
-       } else if (idealPosition.z - prevIdealZ.current < -175) {
-          currentLookAt.current.z -= 350;
-       }
+      const deltaZ = idealPosition.z - prevIdealZ.current;
+      if (Math.abs(deltaZ) > 100) {
+        currentPosition.current.copy(idealPosition);
+        currentLookAt.current.copy(idealLookAt);
+      }
     }
     prevIdealZ.current = idealPosition.z;
 
-    const lookAtDamp = 1 - Math.exp(-4.5 * delta); // Smooth but responsive head tracking
+    // Frame-rate independent exponential asymptotic dampening
+    const positionDamp = 1 - Math.exp(-2.5 * delta); // Slower, heavier positional tracking for smooth travel
+    const lookAtDamp = 1 - Math.exp(-2.0 * delta);   // Slower, heavier rotation for solid cinematic feel
+
+    // Smoothly drag the actual position and lookAt target towards the ideal targets
+    currentPosition.current.lerp(idealPosition, positionDamp);
     currentLookAt.current.lerp(idealLookAt, lookAtDamp);
 
-    state.camera.position.copy(idealPosition);
+    // Apply the smoothed vectors directly to the camera
+    state.camera.position.copy(currentPosition.current);
     state.camera.lookAt(currentLookAt.current);
   });
 

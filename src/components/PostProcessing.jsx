@@ -9,6 +9,7 @@ export default function PostProcessing() {
         luminanceSmoothing={0.9} 
         intensity={1.0} 
         mipmapBlur 
+        radius={0.25} // Significantly decreases the feather/spread of the glow
       />
     </EffectComposer>
   );

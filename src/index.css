@@ -103,36 +103,94 @@ html, body, #root {
   font-weight: 300;
 }
 
-/* Hero UI overlay (optional, for title) */
+/* Hero UI overlay */
 .hero-overlay {
-  position: absolute;
+  position: fixed;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
   text-align: center;
-  pointer-events: none;
+  pointer-events: none; /* let scrolls and touch gestures pass through the text to the window/canvas */
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 90%;
+  max-width: 900px;
+  will-change: transform, filter, opacity; /* promotes to its own composited GPU layer for butter-smooth rendering */
 }
 
 .hero-overlay h1 {
   font-weight: 300;
-  font-size: 5vw;
-  line-height: 1.2;
+  font-size: 76px;
+  line-height: 1.25;
+  letter-spacing: -0.5px;
+  color: var(--warm-white);
+  margin-bottom: 40px;
+  text-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+  font-family: 'Inter', sans-serif;
 }
 
-.hero-overlay h1 span {
-  font-weight: 400;
+.hero-overlay h1 span.highlight-champagne {
+  color: var(--champagne);
+  font-weight: 300;
+}
+
+.hero-btn-container {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 36px;
+  pointer-events: auto; /* make button and animated underline clickable and hoverable */
 }
 
 .hero-start-btn {
-  margin-top: 40px;
-  font-size: 14px;
-  letter-spacing: 2px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 3px;
   color: var(--champagne);
   text-transform: uppercase;
   background: none;
   border: none;
-  border-bottom: 1px solid var(--bud-magenta);
-  padding-bottom: 4px;
+  padding-bottom: 8px;
   cursor: pointer;
-  pointer-events: auto;
+  transition: color 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+}
+
+.hero-start-btn .arrow {
+  color: var(--bud-magenta);
+  margin-left: 8px;
+  transition: transform 0.3s ease;
+  font-weight: 700;
+}
+
+.hero-btn-container:hover .hero-start-btn .arrow {
+  transform: translateX(4px);
+}
+
+.hero-btn-line {
+  width: 240px;
+  height: 1px;
+  background: rgba(244, 240, 232, 0.25);
+  position: relative;
+  overflow: hidden;
+}
+
+.hero-btn-line::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 35%;
+  height: 100%;
+  background: var(--bud-magenta);
+  transition: width 0.4s ease, left 0.4s ease;
+}
+
+.hero-btn-container:hover .hero-btn-line::before {
+  width: 100%;
 }

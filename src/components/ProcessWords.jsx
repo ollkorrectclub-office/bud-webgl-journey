@@ -2,48 +2,58 @@ import React, { useRef } from 'react';
 import { Text } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 
-function FloatingWord({ position, text, fontSize = 2, color = "#F4F0E8" }) {
-  const ref = useRef();
+function AscendingWord({ position, text, fontSize = 1.5, color = "#F4F0E8", letterSpacing = 0 }) {
+  const textRef = useRef();
 
   useFrame(({ camera }) => {
-    if (!ref.current) return;
-    // Always perfectly align with the camera lens so they look like holograms painted on the glass
-    ref.current.quaternion.copy(camera.quaternion);
+    if (!textRef.current) return;
 
-    // Use exact 3D Euclidean distance to prevent distortion during steep vertical climbs
-    const dx = camera.position.x - position[0];
-    const dy = camera.position.y - position[1];
-    const dz = camera.position.z - position[2];
-    const euclideanDist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-    
-    let targetOpacity = 0;
-    if (dz >= 0 && euclideanDist >= 4) {
-      // DEEP FOG EFFECT: Mimic the data points' depth fade.
-      // Words are faintly visible deep in the mist (up to 120 units away),
-      // and become brilliantly bright as you approach (fully visible at 15 units).
-      const fogFactor = 1.0 - Math.min(Math.max((euclideanDist - 15) / 105.0, 0), 1);
-      targetOpacity = fogFactor * 0.9;
-    } else if (dz >= 0 && euclideanDist < 4) {
-      // Smoothly dissolve the text directly into the camera lens as we fly exactly through it
-      targetOpacity = Math.max(0, (euclideanDist / 4) * 0.9);
-    } else if (dz < 0) {
-      // The camera has passed the word, hide it completely to prevent backward rendering
-      targetOpacity = 0;
+    // Rotate the text slightly to face the camera's general direction
+    textRef.current.quaternion.copy(camera.quaternion);
+
+    // Calculate camera distance to the text Z position
+    const camZ = camera.position.z;
+    const wordZ = position[2];
+    const dz = camZ - wordZ;
+
+    let opacity = 0;
+    if (dz > 22) {
+      // Camera is too far away
+      opacity = 0;
+    } else if (dz >= 10) {
+      // Fade in as we approach (from dz = 22 down to dz = 10)
+      opacity = (22 - dz) / 12;
+    } else if (dz >= 0) {
+      // Fully visible right in front of the text (from dz = 10 down to dz = 0)
+      opacity = 1;
+    } else if (dz >= -3) {
+      // Fade out as we pass the text (from dz = 0 down to dz = -3)
+      opacity = (dz + 3) / 3;
+    } else {
+      // Camera has passed the text completely
+      opacity = 0;
     }
-    
-    ref.current.fillOpacity = targetOpacity;
+
+    opacity = Math.max(0, Math.min(1, opacity));
+
+    // Update Three.js mesh visibility and material opacity
+    textRef.current.visible = opacity > 0;
+    if (textRef.current.material) {
+      textRef.current.material.transparent = true;
+      textRef.current.material.opacity = opacity;
+    }
   });
 
   return (
     <Text
-      ref={ref}
+      ref={textRef}
       position={position}
       fontSize={fontSize}
       color={color}
       font="https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfAZ9hjp-Ek-_EeA.woff"
       anchorX="center"
       anchorY="middle"
-      fillOpacity={0} // Start invisible
+      letterSpacing={letterSpacing}
     >
       {text}
     </Text>
@@ -53,14 +63,19 @@ function FloatingWord({ position, text, fontSize = 2, color = "#F4F0E8" }) {
 export default function ProcessWords() {
   return (
     <group>
-      {/* Positioned on the ground, alternating left and right exactly like the cards */}
-      <FloatingWord position={[-4, -3.0, -120]} text="Verstehen" />
-      <FloatingWord position={[4, -3.0, -145]} text="Märkte analysieren" />
-      <FloatingWord position={[-4, -3.0, -170]} text="Ideen validieren" />
-      <FloatingWord position={[4, -3.0, -195]} text="Lösungen entwickeln" />
+      <AscendingWord position={[0, -1, -115]} text="01 Verstehen" />
+      <AscendingWord position={[0, -1, -130]} text="02 Fragen" />
+      <AscendingWord position={[0, -1, -145]} text="03 Analysieren" />
+      <AscendingWord position={[0, -1, -160]} text="04 Entscheiden" />
       
       {/* Final BUD clarity moment */}
-      <FloatingWord position={[-4, -3.0, -220]} text="Klarheit" fontSize={4} color="#AD175D" />
+      <AscendingWord 
+        position={[0, -1, -180]} 
+        text="Klarheit" 
+        fontSize={3}
+        color="#AD175D" // Bud Magenta
+        letterSpacing={0.1}
+      />
     </group>
   );
 }

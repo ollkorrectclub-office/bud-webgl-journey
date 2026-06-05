@@ -1,18 +1,27 @@
 import React, { useMemo, useRef, useEffect } from 'react';
-import { useFrame, useThree } from '@react-three/fiber';
+import { useFrame } from '@react-three/fiber';
+import { useScroll } from '@react-three/drei';
 import * as THREE from 'three';
 
 const GRID_X = 600;
-const GRID_Z = 600;
+const GRID_Z = 800;
 const NUM_POINTS = GRID_X * GRID_Z;
 
 export default function DataField() {
   const pointsGeometryRef = useRef();
   const pointsMatRef = useRef();
+  const linesMatRef = useRef();
   const dustMatRef = useRef();
-  const { camera } = useThree();
+  const scroll = useScroll();
 
-  const { positions, colors, sizes, intensities, customLogoTarget, customLogoColor, dustPositions, version } = useMemo(() => {
+  const cardPositions = useMemo(() => [
+    new THREE.Vector3(-3, -4, -20),
+    new THREE.Vector3(3, -4, -40),
+    new THREE.Vector3(-3, -4, -60),
+    new THREE.Vector3(3, -4, -80)
+  ], []);
+
+  const { positions, colors, sizes, intensities, lineIndices, customLogoTarget, customLogoColor, dustPositions, version } = useMemo(() => {
     const spacingX = 0.6;
     const spacingZ = 0.6;
     
@@ -22,6 +31,7 @@ export default function DataField() {
     const intensity = new Float32Array(NUM_POINTS);
     const logoTgt = new Float32Array(NUM_POINTS * 3);
     const logoCol = new Float32Array(NUM_POINTS * 3);
+    const indices = [];
 
     const colorPalette = [
       new THREE.Color('#5F7F93'), // Steel Blue
@@ -36,7 +46,9 @@ export default function DataField() {
         
         pos[i * 3] = (x - GRID_X / 2) * spacingX;
         pos[i * 3 + 1] = 0; 
-        pos[i * 3 + 2] = (z - GRID_Z / 2) * spacingZ;
+        // Center the grid Z around world Z = -85. Since group is at Z = -50, local Z centers around -35.
+        // The span is GRID_Z * spacingZ = 800 * 0.6 = 480 units.
+        pos[i * 3 + 2] = (z - GRID_Z / 2) * spacingZ - 35.0;
         
         // Initialize logo target to start identical to the grid
         logoTgt[i * 3] = pos[i * 3];
@@ -61,18 +73,21 @@ export default function DataField() {
 
         size[i] = 1.0;
         intensity[i] = 1.0;
+
+        // Sparse Data Wires: connecting grid lines
+        if (x < GRID_X - 1 && Math.random() > 0.99) indices.push(i, i + 1);
+        if (z < GRID_Z - 1 && Math.random() > 0.99) indices.push(i, i + GRID_X);
       }
     }
     
-    // Deep volume dust points
-    // To seamlessly loop over 350 units, we only need to spawn them in a 350 wide bounding box
+    // Deep static dust points spanning the entire grid Z range
     const dustCount = 8000;
     const dustPos = new Float32Array(dustCount * 3);
     for (let i = 0; i < dustCount; i++) {
       dustPos[i * 3] = (Math.random() - 0.5) * 800; // Wide X spread
       dustPos[i * 3 + 1] = (Math.random() - 1.0) * 80 - 5; // Deep underneath (-5 to -85)
-      // Exactly 350 units of spread on Z so the shader can tile it perfectly
-      dustPos[i * 3 + 2] = (Math.random() - 0.5) * 350; 
+      // Spanning local Z range -275 to 205 (world Z -325 to 155)
+      dustPos[i * 3 + 2] = Math.random() * 480 - 275; 
     }
     
     return { 
@@ -80,6 +95,7 @@ export default function DataField() {
       colors: col, 
       sizes: size, 
       intensities: intensity, 
+      lineIndices: new Uint16Array(indices),
       customLogoTarget: logoTgt,
       customLogoColor: logoCol,
       dustPositions: dustPos,
@@ -94,7 +110,6 @@ export default function DataField() {
     img.onload = () => {
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
-      // Process at a healthy resolution. The 360,000 dots will be randomly assigned to these valid pixels.
       const scale = 250 / Math.max(img.width, img.height);
       canvas.width = img.width * scale;
       canvas.height = img.height * scale;
@@ -107,10 +122,10 @@ export default function DataField() {
         for (let x = 0; x < canvas.width; x++) {
           const idx = (y * canvas.width + x) * 4;
           const alpha = imgData[idx + 3];
-          if (alpha > 50) { // Any non-transparent pixel is a valid target
+          if (alpha > 50) {
             validPixels.push({
               x: (x - canvas.width / 2) * 0.35, 
-              y: -(y - canvas.height / 2) * 0.35 + 2.0, // Invert Y, elevate into the sky
+              y: -(y - canvas.height / 2) * 0.35 + 2.0, // Invert Y, elevate into sky
               r: imgData[idx] / 255.0,
               g: imgData[idx + 1] / 255.0,
               b: imgData[idx + 2] / 255.0
@@ -123,20 +138,17 @@ export default function DataField() {
         const tgtArray = pointsGeometryRef.current.attributes.customLogoTarget.array;
         const colArray = pointsGeometryRef.current.attributes.customLogoColor.array;
         
-        // Manual offset to perfectly center the logo relative to the camera
-        const centerXOffset = -7.5; 
+        // Since the camera is aligned centered (X = 0) at the end, keep the logo centered
+        const centerXOffset = 0; 
         
         for (let i = 0; i < NUM_POINTS; i++) {
            const p = validPixels[Math.floor(Math.random() * validPixels.length)];
            
-           // Much tighter scatter for a more defined, crisp logo
            tgtArray[i * 3] = p.x + centerXOffset + (Math.random() - 0.5) * 0.08;     
            tgtArray[i * 3 + 1] = p.y + (Math.random() - 0.5) * 0.08; 
+           // Place the target logo at local Z = -155.0 (world Z = -205.0)
+           tgtArray[i * 3 + 2] = -155.0 + (Math.random() - 0.5) * 2.5; 
            
-           // Thinner Z-depth for better definition (was 12.0, now 2.5)
-           tgtArray[i * 3 + 2] = 20.0 + (Math.random() - 0.5) * 2.5; 
-           
-           // Store the target pixel color!
            colArray[i * 3] = p.r;
            colArray[i * 3 + 1] = p.g;
            colArray[i * 3 + 2] = p.b;
@@ -150,7 +162,7 @@ export default function DataField() {
 
   const vertexShader = `
     uniform float time;
-    uniform float cameraZ;
+    uniform vec3 cardPositions[4];
     uniform float uMorphProgress;
     attribute vec3 customColor;
     attribute float customSize;
@@ -169,49 +181,38 @@ export default function DataField() {
       vIntensity = customIntensity;
       vec3 pos = position;
       
-      // --- INFINITE TERRAIN WRAPPING ---
-      // Wrap the grid seamlessly so the terrain physically moves with the camera infinitely
-      float localCameraZ = cameraZ + 50.0;
-      float distZ = pos.z - localCameraZ;
-      pos.z = localCameraZ + mod(distZ + 175.0, 350.0) - 175.0;
+      vPosXZ = pos.xz; 
       
-      vPosXZ = pos.xz; // Save the wrapped coordinates for the electricity logic!
-      
-      // PERFECT MATHEMATICAL LOOP LOGIC
-      // The camera jumps exactly 350 units on the Z axis when the loop wraps.
-      // To ensure the terrain shape doesn't pop, the wave frequency must be an exact multiple of 2*PI / 350.
-      float baseFreq = 0.017951958; // 2.0 * PI / 350.0
-      
-      // Create organic ocean waves using overlapping sine waves that are mathematically periodic over 340 units
-      // All time multipliers have been halved to dramatically slow down the visual kinetic energy
-      
-      // Layer 1: Broad rolling waves
-      float w1 = sin(pos.x * 0.015 + time * 0.25) * cos(pos.z * baseFreq * 1.0 - time * 0.4);
-      
-      // Layer 2: Medium chop
-      float w2 = sin(pos.x * 0.03 - time * 0.15) * sin(pos.z * baseFreq * 3.0 - time * 0.3);
-      
-      // Layer 3: Fine details
-      float w3 = cos(pos.x * 0.07 + time * 0.35) * cos(pos.z * baseFreq * 7.0 - time * 0.2);
+      // Organic ocean waves using overlapping sine waves (static landscape, no wrapping)
+      float w1 = sin(pos.x * 0.015 + time * 0.25) * cos(pos.z * 0.012 - time * 0.4);
+      float w2 = sin(pos.x * 0.03 - time * 0.15) * sin(pos.z * 0.036 - time * 0.3);
+      float w3 = cos(pos.x * 0.07 + time * 0.35) * cos(pos.z * 0.084 - time * 0.2);
       
       float rawNoise = (w1 + w2 * 0.5 + w3 * 0.25) / 1.75;
       
-      float w4 = sin(pos.x * 0.02 - time * 0.2) * cos(pos.z * baseFreq * 2.0 - time * 0.25);
-      float w5 = cos(pos.x * 0.05 + time * 0.1) * sin(pos.z * baseFreq * 5.0 - time * 0.35);
+      float w4 = sin(pos.x * 0.02 - time * 0.2) * cos(pos.z * 0.024 - time * 0.25);
+      float w5 = cos(pos.x * 0.05 + time * 0.1) * sin(pos.z * 0.06 - time * 0.35);
       
       float rawNoise2 = (w4 + w5 * 0.5) / 1.5;
       
-      // Smooth power curve: No sharp corners.
-      // Exponent slightly increased to 1.4 to make the peaks (pointings) a bit more pronounced
       float n1 = pow((rawNoise + 1.0) * 0.5, 1.4);
       float n2 = pow((rawNoise2 + 1.0) * 0.5, 1.4);
       
-      // Base terrain shape (scaled up for noticeably higher wave peaks!)
-      // Increased the multiplier from 10.0 to 15.0 for the main waves, and 3.0 to 5.0 for the secondary chop
       pos.y += (n1 * 15.0 - 7.5) + (n2 * 5.0 - 2.5);
       
-      // --- CAMERA FORCEFIELD WAKE ---
+      // --- CARD WEIGHT FORCEFIELD ---
       vec4 worldPosition = modelMatrix * vec4(pos, 1.0);
+      float totalCardEffect = 0.0;
+      for (int c = 0; c < 4; c++) {
+        float distToCard = distance(worldPosition.xz, cardPositions[c].xz);
+        float cardEffect = smoothstep(14.0, 0.0, distToCard);
+        cardEffect = cardEffect * cardEffect;
+        totalCardEffect += cardEffect;
+      }
+      pos.y -= totalCardEffect * 4.5;
+      
+      // --- CAMERA FORCEFIELD WAKE ---
+      worldPosition = modelMatrix * vec4(pos, 1.0);
       float distToCamera = distance(worldPosition.xz, cameraPosition.xz);
       
       float wakeEffect = smoothstep(18.0, 0.0, distToCamera);
@@ -222,33 +223,26 @@ export default function DataField() {
       
       vWake = wakeEffect;
 
-      // Small vertical breathing (slowed down from 1.5 to 0.5)
       pos.y += sin(pos.x * 0.05 + pos.z * 0.05 + time * 0.5) * 0.5;
       
       vHeight = pos.y; // Save height for shading BEFORE the logo morph
 
       // --- LOGO MORPH PHYSICS ---
-      // Distribute the morphing time randomly across the swarm so they don't all move rigidly at once
       float randomSeed = fract(sin(dot(customLogoTarget.xy, vec2(12.9898, 78.233))) * 43758.5453);
       float localProgress = smoothstep(randomSeed * 0.3, randomSeed * 0.3 + 0.7, uMorphProgress);
 
-      // Smoothly interpolate the color of the point to the exact color of the SVG pixel!
       vColor = mix(customColor, customLogoColor, localProgress);
 
-      // Create a gorgeous cinematic Bezier arc so the particles explode upward before settling into the logo!
       vec3 wavePos = pos;
       vec3 finalLogoPos = customLogoTarget;
       
       vec3 midPoint = (wavePos + finalLogoPos) * 0.5;
-      midPoint.y += 30.0 + randomSeed * 20.0; // Huge swooping arcs up to 50 units high!
+      midPoint.y += 30.0 + randomSeed * 20.0; 
       
       float t = localProgress;
       float invT = 1.0 - t;
       
-      // Quadratic bezier curve interpolation
       vec3 morphedPos = invT * invT * wavePos + 2.0 * invT * t * midPoint + t * t * finalLogoPos;
-      
-      // Apply the morph
       pos = morphedPos;
 
       vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
@@ -265,8 +259,8 @@ export default function DataField() {
   const pointsShader = useMemo(() => new THREE.ShaderMaterial({
     uniforms: { 
        time: { value: 0 }, 
-       cameraZ: { value: 0 },
-       uMorphProgress: { value: 0 }
+       uMorphProgress: { value: 0 },
+       cardPositions: { value: cardPositions }
     },
     defines: { IS_POINTS: '' },
     vertexShader,
@@ -309,10 +303,6 @@ export default function DataField() {
         finalColor += champagneLight * vWake * 2.5;
 
         // --- ELECTRICITY DATA STREAMS ---
-        // Exactly 10.0 / 350.0 to mathematically guarantee flawless infinite looping when Z wraps!
-        float sparkFreq = 10.0 / 350.0; 
-        
-        // Z-axis sparks (traveling along depth)
         // Quantize X to precisely target specific columns in the 0.6-spaced grid
         float gridLineX = floor(vPosXZ.x / 0.6);
         float hashX = fract(sin(gridLineX * 12.9898) * 43758.5453);
@@ -320,8 +310,7 @@ export default function DataField() {
         float dirZ = sign(fract(hashX * 13.3) - 0.5); // Random direction (+1 or -1)
         float speedZ = 1.0 + fract(hashX * 27.1) * 2.5; // Random speed
         
-        // Modulo 10.0 creates a long delay. The spark is only visible briefly per 10-unit cycle.
-        float cycleZ = mod(vPosXZ.y * sparkFreq - time * speedZ * dirZ + hashX * 100.0, 10.0);
+        float cycleZ = mod(vPosXZ.y * 0.015 - time * speedZ * dirZ + hashX * 100.0, 10.0);
         float coreZ = smoothstep(4.9, 5.0, cycleZ) * smoothstep(5.1, 5.0, cycleZ);
         float glowZ = smoothstep(4.4, 5.0, cycleZ) * smoothstep(5.6, 5.0, cycleZ) * 0.4;
         float finalSparkZ = (coreZ + glowZ) * hasElecZ;
@@ -340,8 +329,8 @@ export default function DataField() {
 
         float totalSpark = max(finalSparkZ, finalSparkX);
 
-        // Brilliant cyan-white electricity burst for the Bloom pass
-        vec3 elecColor = vec3(1.8, 0.2, 1.0) * 2.5; // Electric Pink
+        // Brilliant champagne glow electricity
+        vec3 elecColor = champagneLight * 3.0; 
         
         finalColor += elecColor * totalSpark;
 
@@ -355,24 +344,37 @@ export default function DataField() {
     transparent: true,
     depthWrite: true,
     blending: THREE.NormalBlending
-  }), [vertexShader]);
+  }), [vertexShader, cardPositions]);
 
-  // Special shader for dust that perfectly wraps around the camera!
+  const linesShader = useMemo(() => new THREE.ShaderMaterial({
+    uniforms: { 
+      time: { value: 0 },
+      cardPositions: { value: cardPositions }
+    },
+    vertexShader,
+    fragmentShader: `
+      varying float vDistance;
+
+      void main() {
+        float alpha = 0.06; 
+        float fogFactor = smoothstep(100.0, 20.0, vDistance);
+        alpha *= fogFactor;
+
+        vec3 lineColor = vec3(0.5, 0.6, 0.7);
+        gl_FragColor = vec4(lineColor, alpha);
+      }
+    `,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending
+  }), [vertexShader, cardPositions]);
+
+  // Static dust shader
   const dustShader = useMemo(() => new THREE.ShaderMaterial({
-    uniforms: { cameraZ: { value: 0 } },
     vertexShader: `
-      uniform float cameraZ;
       varying float vDistance;
       void main() {
         vec3 pos = position;
-        
-        // Group is at Z=-50, so local camera Z is cameraZ + 50
-        float localCameraZ = cameraZ + 50.0;
-        float distZ = pos.z - localCameraZ;
-        
-        // Wrap Z over exactly 350 units
-        pos.z = localCameraZ + mod(distZ + 175.0, 350.0) - 175.0;
-        
         vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
         gl_Position = projectionMatrix * mvPosition;
         gl_PointSize = 1.2;
@@ -395,17 +397,11 @@ export default function DataField() {
 
   useFrame((state) => {
     const time = state.clock.getElapsedTime();
-    // Convert physical camera position into a seamless 0-1 cycle!
-    // The tunnel starts at Z=120 and wraps at Z=-230 (total length 350)
-    let cycle = (120 - state.camera.position.z) / 350;
-    cycle = cycle % 1.0;
-    if (cycle < 0) cycle += 1.0;
+    const rawScroll = scroll.offset || 0;
     
-    // Convert linear cycle into a cinematic 3-stage morph sequence:
-    // 0.82 -> 0.88 : Fly up from waves into the logo
-    // 0.88 -> 0.94 : Hold perfectly in the logo shape as camera flies towards it
-    // 0.94 -> 0.99 : Dissolve back into waves seamlessly as the loop completes
+    // Morph logic: active at the end of the scroll (0.80 to 0.99)
     let morph = 0;
+    const cycle = rawScroll % 1.0;
     
     if (cycle > 0.80 && cycle <= 0.88) {
        morph = (cycle - 0.80) / 0.08; 
@@ -417,10 +413,11 @@ export default function DataField() {
 
     if (pointsMatRef.current) {
        pointsMatRef.current.uniforms.time.value = time;
-       pointsMatRef.current.uniforms.cameraZ.value = state.camera.position.z;
        pointsMatRef.current.uniforms.uMorphProgress.value = morph;
     }
-    if (dustMatRef.current) dustMatRef.current.uniforms.cameraZ.value = state.camera.position.z;
+    if (linesMatRef.current) {
+       linesMatRef.current.uniforms.time.value = time;
+    }
   });
 
   return (
@@ -437,6 +434,15 @@ export default function DataField() {
         </bufferGeometry>
         <primitive object={pointsShader} attach="material" ref={pointsMatRef} />
       </points>
+
+      {/* Lines */}
+      <lineSegments>
+        <bufferGeometry key={"lns-" + version}>
+          <bufferAttribute attach="attributes-position" count={positions.length / 3} array={positions} itemSize={3} />
+          <bufferAttribute attach="index" array={lineIndices} count={lineIndices.length} itemSize={1} />
+        </bufferGeometry>
+        <primitive object={linesShader} attach="material" ref={linesMatRef} />
+      </lineSegments>
 
       {/* Deep Background Dust */}
       <points>
