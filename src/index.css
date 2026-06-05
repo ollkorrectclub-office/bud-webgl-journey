@@ -5,7 +5,7 @@
   --steel-blue: #5F7F93;
   --warm-white: #F4F0E8;
   --graphite: #101217;
-  --bud-magenta: #AD175D;
+  --bud-magenta: #b31b5a;
 }
 
 * {
@@ -34,33 +34,32 @@ html, body, #root {
 }
 
 /* Glass Card Styles */
-/* Glass Card Styles */
 .glass-card {
-  background: rgba(10, 12, 16, 0.70); /* 70% opacity dark graphite background */
-  border: 1.5px solid rgba(200, 182, 138, 0.8); /* Solid outer champagne gold border */
-  border-radius: 24px;
-  backdrop-filter: blur(24px) saturate(140%);
-  -webkit-backdrop-filter: blur(24px) saturate(140%);
-  padding: 40px;
-  width: 460px;
+  background: rgba(10, 12, 16, 0.70); /* Exactly 70% opacity dark graphite background */
+  border: 1.5px solid rgba(200, 182, 138, 0.8); /* 1.5px solid outer champagne gold border */
+  border-radius: 20px;
+  backdrop-filter: blur(24px) saturate(145%); /* Premium frosted glass blur */
+  -webkit-backdrop-filter: blur(24px) saturate(145%);
+  padding: 48px;
+  width: 480px;
   position: relative;
   overflow: hidden;
   box-shadow: 
-    0 30px 60px rgba(0, 0, 0, 0.7), 
-    inset 0 1px 0 rgba(255, 255, 255, 0.15), /* Inner white bevel top edge highlight */
-    inset 0 0 0 1px rgba(255, 255, 255, 0.05), /* Inner white border line */
-    0 0 25px rgba(200, 182, 138, 0.25), /* Champagne gold outer glow */
-    0 0 50px rgba(179, 27, 90, 0.15); /* Magenta ambient outer glow */
-  transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.4s ease, border-color 0.4s ease;
+    0 30px 60px rgba(0, 0, 0, 0.65), 
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.15), /* White inner bevel top edge highlight */
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05), /* Subtle inner border highlight */
+    0 0 30px rgba(200, 182, 138, 0.25), /* Outer Champagne Gold glow */
+    0 0 60px rgba(179, 27, 90, 0.15); /* Magenta ambient glow */
+  transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.4s ease;
 }
 
 .glass-card:hover {
   transform: translateY(-5px) scale(1.02);
   box-shadow: 
-    0 40px 80px rgba(0, 0, 0, 0.8), 
-    inset 0 1px 0 rgba(255, 255, 255, 0.20),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.10),
-    0 0 45px rgba(200, 182, 138, 0.45), /* Stronger Hover Glow */
+    0 40px 80px rgba(0, 0, 0, 0.7), 
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.25),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.1),
+    0 0 45px rgba(200, 182, 138, 0.4), /* Stronger Hover Glow */
     0 0 80px rgba(179, 27, 90, 0.3); /* Stronger Magenta Hover */
   border-color: rgba(200, 182, 138, 1.0);
 }
@@ -78,40 +77,41 @@ html, body, #root {
 }
 
 .card-number {
-  color: #b31b5a; /* Glowing Logo Magenta Pink */
-  text-shadow: 0 0 10px rgba(179, 27, 90, 0.8); /* Glow effect */
+  color: var(--bud-magenta);
   font-size: 15px;
   font-weight: 700;
   letter-spacing: 3px;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
   text-transform: uppercase;
   display: inline-block;
   padding: 6px 14px;
-  background: rgba(179, 27, 90, 0.12);
+  background: rgba(179, 27, 90, 0.12); /* Translucent background */
   border-radius: 20px;
   border: 1px solid rgba(179, 27, 90, 0.3);
+  text-shadow: 0 0 10px rgba(179, 27, 90, 0.8); /* Glow effect on the number */
+  box-shadow: 0 0 15px rgba(179, 27, 90, 0.2); /* Soft ambient glow behind the badge */
 }
 
 .card-title {
-  font-size: 30px;
+  font-size: 36px;
   font-weight: 300;
-  margin-bottom: 12px;
-  color: var(--warm-white);
-  line-height: 1.25;
-}
-
-.card-subtitle {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--champagne);
   margin-bottom: 16px;
-  line-height: 1.4;
+  color: var(--warm-white);
+  line-height: 1.2;
 }
 
 .card-description {
+  font-size: 17px;
+  color: rgba(244, 240, 232, 0.85);
+  line-height: 1.7;
+  font-weight: 300;
+}
+
+.card-body {
+  margin-top: 24px;
   font-size: 14px;
-  color: rgba(244, 240, 232, 0.75);
-  line-height: 1.6;
+  line-height: 1.65;
+  color: rgba(244, 240, 232, 0.65);
   font-weight: 300;
 }
 

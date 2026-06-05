@@ -226,7 +226,7 @@ export default function DataField() {
       pos.y += sin(pos.x * 0.05 + pos.z * 0.05 + time * 0.5) * 0.5;
       
       vHeight = pos.y; // Save height for shading BEFORE the logo morph
-
+ 
       // --- LOGO MORPH PHYSICS ---
       float randomSeed = fract(sin(dot(customLogoTarget.xy, vec2(12.9898, 78.233))) * 43758.5453);
       float localProgress = smoothstep(randomSeed * 0.3, randomSeed * 0.3 + 0.7, uMorphProgress);

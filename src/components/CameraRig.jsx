@@ -57,7 +57,7 @@ export default function CameraRig() {
   const scroll = useScroll();
   const activeStage = useRef(0);
   const lastScrollTime = useRef(0);
-  const cooldown = 400; // ms (reduced to make scroll snap highly responsive)
+  const cooldown = 400; // ms (gives a nice travel time before enabling the next scroll)
   
   // Track current state separately from the ideal state to allow ultra-smooth lerping
   const currentPosition = useRef(new THREE.Vector3(0, 1, 20));
@@ -118,13 +118,11 @@ export default function CameraRig() {
 
       let changed = false;
       if (delta > 0) {
-        // Scroll down -> go next stage (no wrap-around)
         if (activeStage.current < snapPoints.length - 1) {
           activeStage.current = activeStage.current + 1;
           changed = true;
         }
       } else {
-        // Scroll up -> go previous stage (no wrap-around)
         if (activeStage.current > 0) {
           activeStage.current = activeStage.current - 1;
           changed = true;
@@ -153,13 +151,11 @@ export default function CameraRig() {
 
       let changed = false;
       if (diffY > 0) {
-        // Swipe up -> scroll down -> go next stage (no wrap-around)
         if (activeStage.current < snapPoints.length - 1) {
           activeStage.current = activeStage.current + 1;
           changed = true;
         }
       } else {
-        // Swipe down -> scroll up -> go previous stage (no wrap-around)
         if (activeStage.current > 0) {
           activeStage.current = activeStage.current - 1;
           changed = true;
@@ -236,8 +232,8 @@ export default function CameraRig() {
     prevIdealZ.current = idealPosition.z;
 
     // Frame-rate independent exponential asymptotic dampening
-    const positionDamp = 1 - Math.exp(-4.5 * delta); // Faster, tighter positional tracking for smooth travel
-    const lookAtDamp = 1 - Math.exp(-4.0 * delta);   // Faster, tighter rotation for solid cinematic feel
+    const positionDamp = 1 - Math.exp(-4.5 * delta); // Faster, tight positional tracking for responsive feel
+    const lookAtDamp = 1 - Math.exp(-4.0 * delta);   // Faster, tight rotation for solid responsive feel
 
     // Smoothly drag the actual position and lookAt target towards the ideal targets
     currentPosition.current.lerp(idealPosition, positionDamp);
