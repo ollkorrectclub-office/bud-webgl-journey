@@ -28,11 +28,16 @@ export default function App() {
 
   const handleCardEnter = useCallback((card) => {
     setActiveCard(card);
-    setShowDetail(true); // Mount and fade in the detail page immediately on click
+    setShowDetail(false);
+    
+    // Wait for the card fade out to be mostly complete (450ms) before fading in the detail overlay
+    setTimeout(() => {
+      setShowDetail(true);
+    }, 450);
   }, []);
 
   const handleShatterComplete = useCallback(() => {
-    // Detail page is already mounted
+    // Detail page mounting is handled by the timeout
   }, []);
 
   const handleBack = useCallback(() => {
