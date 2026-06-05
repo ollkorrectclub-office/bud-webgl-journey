@@ -2,7 +2,7 @@ import React, { useRef } from 'react';
 import { Text, useScroll } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 
-function AscendingWord({ index, position, text, fontSize = 1.5, color = "#F4F0E8", letterSpacing = 0 }) {
+function AscendingWord({ index, text, fontSize = 1.5, color = "#F4F0E8", letterSpacing = 0 }) {
   const textRef = useRef();
   const scroll = useScroll();
 
@@ -26,31 +26,32 @@ function AscendingWord({ index, position, text, fontSize = 1.5, color = "#F4F0E8
     const endProgress = (index + 1) * interval;
 
     let opacity = 0;
-    let curZ = -150; // default start Z in the distance (behind waves)
+    let curY = -9.5; // Start position deep at the waves
 
     // Only active during its specific scroll interval
     if (tTitles >= startProgress && tTitles <= endProgress) {
       const tLocal = (tTitles - startProgress) / interval; // progress within this title's interval (0 to 1)
 
-      // Fly from -150 (deep distance) to -80 (well past camera lens Z = -115)
-      const startZ = -150;
-      const endZ = -80;
-      curZ = startZ + tLocal * (endZ - startZ);
+      // Rise vertically from the waves (Y = -9.5) straight up to the camera lens (Y = 6.5)
+      const startY = -9.5;
+      const endY = 6.5;
+      curY = startY + tLocal * (endY - startY);
 
-      // Smooth local fade-in and fade-out
-      if (tLocal < 0.2) {
-        opacity = tLocal / 0.2; // Fade in (0 to 1)
-      } else if (tLocal > 0.8) {
-        opacity = (1 - tLocal) / 0.2; // Fade out (1 to 0)
+      // Fade-in as it leaves the waves, and fade-out as it merges into the lens
+      if (tLocal < 0.25) {
+        opacity = tLocal / 0.25; // Smooth fade-in
+      } else if (tLocal > 0.85) {
+        opacity = (1 - tLocal) / 0.15; // Quick fade-out right at the lens
       } else {
-        opacity = 1; // Fully visible
+        opacity = 1.0;
       }
     } else {
       opacity = 0;
     }
 
-    // Set position
-    textRef.current.position.set(position[0], position[1], curZ);
+    // Keep X centered (0) and Z locked exactly under the camera (Z = -115)
+    // The Y coordinate animates to fly straight from waves into the lens
+    textRef.current.position.set(0, curY, -115);
 
     // Apply visibility and opacity
     textRef.current.visible = opacity > 0.01;
@@ -63,7 +64,6 @@ function AscendingWord({ index, position, text, fontSize = 1.5, color = "#F4F0E8
   return (
     <Text
       ref={textRef}
-      position={position}
       rotation={[-Math.PI / 2, 0, 0]} // Lies flat above waves, oriented horizontally (readable left-to-right from top camera view)
       fontSize={fontSize}
       color={color}
@@ -80,16 +80,15 @@ function AscendingWord({ index, position, text, fontSize = 1.5, color = "#F4F0E8
 export default function ProcessWords() {
   return (
     <group>
-      {/* Placed at Y = -8.5 (just above the wave field group which is at Y = -10) */}
-      <AscendingWord index={0} position={[0, -8.5, -115]} text="01 Verstehen" />
-      <AscendingWord index={1} position={[0, -8.5, -130]} text="02 Fragen" />
-      <AscendingWord index={2} position={[0, -8.5, -145]} text="03 Analysieren" />
-      <AscendingWord index={3} position={[0, -8.5, -160]} text="04 Entscheiden" />
+      {/* Placed at fixed Z = -115 (centered under top-down camera) */}
+      <AscendingWord index={0} text="01 Verstehen" />
+      <AscendingWord index={1} text="02 Fragen" />
+      <AscendingWord index={2} text="03 Analysieren" />
+      <AscendingWord index={3} text="04 Entscheiden" />
       
       {/* Final BUD clarity moment */}
       <AscendingWord 
         index={4}
-        position={[0, -8.5, -180]} 
         text="Klarheit" 
         fontSize={3.0}
         color="#AD175D" // Bud Magenta
