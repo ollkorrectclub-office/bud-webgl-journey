@@ -19,33 +19,34 @@ function AscendingWord({ index, text, fontSize = 1.5, color = "#F4F0E8", letterS
       tTitles = (t - tStart) / (1 - tStart); // progresses from 0 to 1
     }
 
-    const numTitles = 5;
-    const interval = 1.0 / numTitles; // Each title gets a 20% scroll window
-
-    const startProgress = index * interval;
-    const endProgress = (index + 1) * interval;
+    // Title index 0 is centered at tTitles = 0.0 (Snap Point 5)
+    // Title index 1 is centered at tTitles = 0.25 (Snap Point 6)
+    // Title index 2 is centered at tTitles = 0.50 (Snap Point 7)
+    // Title index 3 is centered at tTitles = 0.75 (Snap Point 8)
+    // Title index 4 is centered at tTitles = 1.00 (Snap Point 9)
+    const targetProgress = index * 0.25;
+    const dx = tTitles - targetProgress;
 
     let opacity = 0;
-    let curY = -9.5; // Start position deep at the waves
+    let curY = -9.5;
 
-    // Only active during its specific scroll interval
-    if (tTitles >= startProgress && tTitles <= endProgress) {
-      const tLocal = (tTitles - startProgress) / interval; // progress within this title's interval (0 to 1)
-
-      // Rise vertically from the waves (Y = -9.5) straight up to the camera lens (Y = 6.5)
-      const startY = -9.5;
-      const endY = 6.5;
-      curY = startY + tLocal * (endY - startY);
-
-      // Fade-in as it leaves the waves, and fade-out as it merges into the lens
-      if (tLocal < 0.25) {
-        opacity = tLocal / 0.25; // Smooth fade-in
-      } else if (tLocal > 0.85) {
-        opacity = (1 - tLocal) / 0.15; // Quick fade-out right at the lens
-      } else {
-        opacity = 1.0;
-      }
+    if (dx < -0.25) {
+      // Too far in the future: hidden deep at the waves
+      curY = -9.5;
+      opacity = 0;
+    } else if (dx < 0) {
+      // Flying from the waves to the center
+      const pct = (dx + 0.25) / 0.25;
+      curY = -9.5 + pct * 2.0; // rises from Y = -9.5 up to Y = -7.5 (centered reading height)
+      opacity = pct; // fades in
+    } else if (dx <= 0.25) {
+      // Flying from the center to the camera lens
+      const pct = dx / 0.25;
+      curY = -7.5 + pct * 14.0; // rises from Y = -7.5 up to Y = 6.5 (past camera lens Y = 6.0)
+      opacity = 1.0 - pct; // fades out
     } else {
+      // Already passed and gone
+      curY = 6.5;
       opacity = 0;
     }
 
