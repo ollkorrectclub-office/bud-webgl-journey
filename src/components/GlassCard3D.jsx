@@ -61,6 +61,46 @@ function createRoundedFrame(width, height, radius, thickness) {
   return new THREE.ShapeGeometry(shape, 32);
 }
 
+// Custom geometry for a rounded rectangle inner border highlight
+function createInnerRoundedFrame(width, height, radius, thickness) {
+  const shape = new THREE.Shape();
+  const x = -width / 2;
+  const y = -height / 2;
+  
+  // Outer contour (counter-clockwise) - matches card dimensions exactly
+  shape.moveTo(x, y + radius);
+  shape.lineTo(x, y + height - radius);
+  shape.quadraticCurveTo(x, y + height, x + radius, y + height);
+  shape.lineTo(x + width - radius, y + height);
+  shape.quadraticCurveTo(x + width, y + height, x + width, y + height - radius);
+  shape.lineTo(x + width, y + radius);
+  shape.quadraticCurveTo(x + width, y, x + width - radius, y);
+  shape.lineTo(x + radius, y);
+  shape.quadraticCurveTo(x, y, x, y + radius);
+
+  // Inner contour (clockwise) to create a hole inside the card
+  const hole = new THREE.Path();
+  const iw = width - 2 * thickness;
+  const ih = height - 2 * thickness;
+  const ir = Math.max(0.01, radius - thickness);
+  const ix = -iw / 2;
+  const iy = -ih / 2;
+
+  hole.moveTo(ix, iy + ih - ir);
+  hole.lineTo(ix, iy + ir);
+  hole.quadraticCurveTo(ix, iy, ix + ir, iy);
+  hole.lineTo(ix + iw - ir, iy);
+  hole.quadraticCurveTo(ix + iw, iy, ix + iw, iy + ir);
+  hole.lineTo(ix + iw, iy + ih - ir);
+  hole.quadraticCurveTo(ix + iw, iy + ih, ix + iw - ir, iy + ih);
+  hole.lineTo(ix + ir, iy + ih);
+  hole.quadraticCurveTo(ix, iy + ih, ix, iy + ih - ir);
+  hole.closePath();
+
+  shape.holes.push(hole);
+  return new THREE.ShapeGeometry(shape, 32);
+}
+
 export default function GlassCard3D({ position, rotation, number, title, description }) {
   const groupRef = useRef();
 
@@ -99,8 +139,10 @@ export default function GlassCard3D({ position, rotation, number, title, descrip
       // Apply opacity to all materials inside this card
       groupRef.current.traverse((child) => {
         if (child.material) {
-          // The dark glass panel has a max opacity of 0.70, everything else is 1.0
-          const maxOpacity = child.material.type === 'MeshPhysicalMaterial' ? 0.70 : 1.0;
+          // Glass panel has max opacity of 0.70, glass edge highlight has max opacity of 0.12, everything else is 1.0
+          const maxOpacity = child.material.name === 'glassEdgeMaterial' 
+            ? 0.12 
+            : (child.material.type === 'MeshPhysicalMaterial' ? 0.70 : 1.0);
           child.material.opacity = targetOpacity * maxOpacity;
           // Hide completely when invisible to prevent ghosting from refraction
           child.visible = targetOpacity > 0.01;
@@ -115,6 +157,7 @@ export default function GlassCard3D({ position, rotation, number, title, descrip
 
   const geometry = useMemo(() => createRoundedRect(width, height, radius), [width, height, radius]);
   const frameGeometry = useMemo(() => createRoundedFrame(width, height, radius, 0.03), [width, height, radius]);
+  const glassEdgeGeometry = useMemo(() => createInnerRoundedFrame(width, height, radius, 0.015), [width, height, radius]);
 
   return (
     <group ref={groupRef} position={position} rotation={rotation || [0, 0, 0]}>
@@ -125,11 +168,22 @@ export default function GlassCard3D({ position, rotation, number, title, descrip
           transmission={0.0}
           opacity={0.70}
           transparent
-          metalness={0.1}
-          roughness={0.1}
+          metalness={0.2}
+          roughness={0.05}
           clearcoat={1.0}
-          clearcoatRoughness={0.1}
+          clearcoatRoughness={0.05}
+          reflectivity={0.9}
         />
+        
+        {/* Subtle glass edge highlight (white/champagne) to enhance the glassmorphism look */}
+        <mesh geometry={glassEdgeGeometry} position={[0, 0, 0.015]}>
+          <meshBasicMaterial 
+            name="glassEdgeMaterial"
+            color="#ffffff"
+            opacity={0.12}
+            transparent
+          />
+        </mesh>
         
         {/* The Sleek Glowing Edge (Champagne Gold) - Mesh-based outline positioned behind to avoid inner glow */}
         <mesh geometry={frameGeometry} position={[0, 0, -0.02]}>
