@@ -2,8 +2,8 @@ import React, { useRef, useMemo, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
-const PARTICLE_COUNT = 300;
-const DURATION = 2.0; // Slightly longer duration for a slower, more graceful fade
+const PARTICLE_COUNT = 350;
+const DURATION = 2.8; // Slower, more majestic cinematic duration
 
 export default function CardShatter({ position, onComplete }) {
   const glowRef = useRef();
@@ -15,25 +15,29 @@ export default function CardShatter({ position, onComplete }) {
     const height = 4;
 
     return Array.from({ length: PARTICLE_COUNT }, () => {
+      // Start position from card bounds
       const x = (Math.random() - 0.5) * width;
       const y = (Math.random() - 0.5) * height;
 
-      // Normalized coordinates from center
-      const dx = x / (width / 2);
-      const dy = y / (height / 2);
+      // Calculate radial direction outward from the card center
+      const angle = Math.atan2(y, x) + (Math.random() - 0.5) * 0.4;
+      const dist = Math.sqrt(x * x + y * y) || 1.0;
 
-      // Slower, elegant floating velocities: drift outward, upward, and forward
-      const speed = 0.4 + Math.random() * 1.0;
-      const vx = dx * speed + (Math.random() - 0.5) * 0.3;
-      const vy = dy * speed + 0.4 + Math.random() * 0.6; // gentle upward lift
-      const vz = 1.0 + Math.random() * 2.0; // drift towards camera
+      // Cinematic speed profile: fast initial burst, then decelerating
+      const speed = 2.5 + Math.random() * 5.0; // High speed for wide spread
+      const vx = Math.cos(angle) * speed + (Math.random() - 0.5) * 1.0;
+      const vy = Math.sin(angle) * speed + 0.8 + Math.random() * 1.5; // Upward drift bias
 
-      const rx = (Math.random() - 0.5) * 3;
-      const ry = (Math.random() - 0.5) * 3;
-      const rz = (Math.random() - 0.5) * 3;
+      // High Z velocity variation to push particles past the camera lens (Z = 9.0)
+      // Since max Z traveled is vz * DURATION, a vz of 4.5 will reach 12.6 (well past camera)
+      const vz = 0.5 + Math.random() * 5.5;
 
-      // Small, delicate glowing dust particles
-      const scale = 0.02 + Math.random() * 0.08;
+      const rx = (Math.random() - 0.5) * 5;
+      const ry = (Math.random() - 0.5) * 5;
+      const rz = (Math.random() - 0.5) * 5;
+
+      // 3D Sphere sizes: delicate glowing crystals/pearls
+      const scale = 0.04 + Math.random() * 0.12;
 
       return { x, y, vx, vy, vz, rx, ry, rz, scale };
     });
@@ -41,7 +45,8 @@ export default function CardShatter({ position, onComplete }) {
 
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const shardGeom = useMemo(() => {
-    return new THREE.CircleGeometry(0.4, 8); // Simple, efficient circular shapes
+    // 3D sphere geometry makes particles look solid and round from any angle
+    return new THREE.SphereGeometry(0.3, 8, 8);
   }, []);
 
   useEffect(() => {
@@ -68,27 +73,30 @@ export default function CardShatter({ position, onComplete }) {
     const elapsed = state.clock.getElapsedTime() - startTime.current;
     const progress = Math.min(elapsed / DURATION, 1);
     
-    // Smooth quintic ease-out so particles decelerate and disappear gracefully
-    const eased = 1 - Math.pow(1 - progress, 5);
+    // Quartic ease-out: starts with an explosive burst and smoothly decelerates
+    const eased = 1 - Math.pow(1 - progress, 4);
 
     particles.forEach((p, i) => {
-      const t = elapsed;
-      dummy.position.set(
-        p.x + p.vx * t,
-        p.y + p.vy * t + 0.1 * t * t, // light upward acceleration (anti-gravity drift)
-        p.vz * t // drifting forward to create 3D depth
-      );
-      dummy.rotation.set(p.rx * t, p.ry * t, p.rz * t);
+      // Interpolate position using the eased progression (explosive deceleration)
+      const curX = p.x + p.vx * eased;
+      const curY = p.y + p.vy * eased;
+      const curZ = p.vz * eased * DURATION; // Travels along Z axis
+
+      dummy.position.set(curX, curY, curZ);
+      dummy.rotation.set(p.rx * elapsed, p.ry * elapsed, p.rz * elapsed);
       
-      const fadeScale = p.scale * Math.max(0, 1 - eased);
+      // Scale fades down to zero at the end of duration
+      const fadeScale = p.scale * Math.max(0, 1 - progress);
       dummy.scale.set(fadeScale, fadeScale, fadeScale);
       dummy.updateMatrix();
+      
       glowRef.current.setMatrixAt(i, dummy.matrix);
     });
 
     glowRef.current.instanceMatrix.needsUpdate = true;
 
-    const alpha = Math.max(0, 1 - eased);
+    // Fade opacity out smoothly
+    const alpha = Math.max(0, 1 - progress);
     if (glowRef.current.material) {
       glowRef.current.material.opacity = alpha;
     }
@@ -101,10 +109,10 @@ export default function CardShatter({ position, onComplete }) {
 
   return (
     <group position={position}>
-      {/* Pure champagne gold glowing particles (bloom enabled) */}
+      {/* 3D Champagne glowing particles */}
       <instancedMesh ref={glowRef} args={[shardGeom, null, PARTICLE_COUNT]} frustumCulled={false}>
         <meshBasicMaterial
-          color={[2.2, 1.6, 0.9]} // Champagne Gold emissive tone
+          color={[2.5, 1.8, 1.0]} // Brighter glow for cinematic bloom
           toneMapped={false}
           transparent
           opacity={1}
