@@ -12,46 +12,74 @@ function AscendingWord({ index, text, fontSize = 1.5, color = "#F4F0E8", letterS
     // Get current scroll progress
     const t = scroll.offset || 0;
 
-    // The titles phase begins at t >= 11/16 (0.6875) when the camera locks at Z = -115
-    const tStart = 11/16;
-    let tTitles = 0;
-    if (t > tStart) {
-      tTitles = (t - tStart) / (1 - tStart); // progresses from 0 to 1
-    }
-
-    // Title index 0 is centered at tTitles = 0.0 (Snap Point 5)
-    // Title index 1 is centered at tTitles = 0.25 (Snap Point 6)
-    // Title index 2 is centered at tTitles = 0.50 (Snap Point 7)
-    // Title index 3 is centered at tTitles = 0.75 (Snap Point 8)
-    // Title index 4 is centered at tTitles = 1.00 (Snap Point 9)
-    const targetProgress = index * 0.25;
-    const dx = tTitles - targetProgress;
-
     let opacity = 0;
     let curY = -9.5;
 
-    if (dx < -0.25) {
-      // Too far in the future: hidden deep at the waves
+    // 1. Hide all titles completely during the card boxes phase (t < 10/16)
+    if (t < 10/16) {
+      opacity = 0;
       curY = -9.5;
-      opacity = 0;
-    } else if (dx < 0) {
-      // Flying from the waves to the center
-      const pct = (dx + 0.25) / 0.25;
-      curY = -9.5 + pct * 2.0; // rises from Y = -9.5 up to Y = -7.5 (centered reading height)
-      opacity = pct; // fades in
-    } else if (dx <= 0.25) {
-      // Flying from the center to the camera lens
-      const pct = dx / 0.25;
-      curY = -7.5 + pct * 14.0; // rises from Y = -7.5 up to Y = 6.5 (past camera lens Y = 6.0)
-      opacity = 1.0 - pct; // fades out
-    } else {
-      // Already passed and gone
-      curY = 6.5;
-      opacity = 0;
+    } 
+    // 2. Smoothly fade in only the first title as the camera completes its tilt down (10/16 <= t < 11/16)
+    else if (t < 11/16) {
+      if (index === 0) {
+        curY = -7.5; // Lock at centered reading height
+        opacity = (t - 10/16) / (1/16); // Fade in from 0 to 1
+      } else {
+        opacity = 0;
+        curY = -9.5;
+      }
+    } 
+    // 3. Sequential flight transitions during the top-down locked phase (t >= 11/16)
+    else {
+      const tTitles = (t - 11/16) / (1 - 11/16); // progresses from 0 to 1
+
+      // Title index 0 is centered at tTitles = 0.0 (Snap Point 5)
+      // Title index 1 is centered at tTitles = 0.25 (Snap Point 6)
+      // Title index 2 is centered at tTitles = 0.50 (Snap Point 7)
+      // Title index 3 is centered at tTitles = 0.75 (Snap Point 8)
+      // Title index 4 is centered at tTitles = 1.00 (Snap Point 9)
+      const targetProgress = index * 0.25;
+      const dx = tTitles - targetProgress;
+
+      if (dx < -0.25) {
+        // Future title: hidden deep at the waves
+        curY = -9.5;
+        opacity = 0;
+      } else if (dx < 0) {
+        // Entering title: flies from waves to center in the SECOND half of the scroll step
+        const localT = (dx + 0.25) / 0.25; // 0 to 1 progress between snap points
+        if (localT <= 0.5) {
+          // First half: remain completely hidden so it doesn't overlap the departing title
+          curY = -9.5;
+          opacity = 0;
+        } else {
+          // Second half: fly up and fade in
+          const pct = (localT - 0.5) / 0.5; // 0 to 1 progress within second half
+          curY = -9.5 + pct * 2.0; // Rises from Y = -9.5 to Y = -7.5
+          opacity = pct;
+        }
+      } else if (dx <= 0.25) {
+        // Departing title: flies from center to camera lens in the FIRST half of the scroll step
+        const localT = dx / 0.25; // 0 to 1 progress between snap points
+        if (localT <= 0.5) {
+          // First half: fly up and fade out
+          const pct = localT / 0.5; // 0 to 1 progress within first half
+          curY = -7.5 + pct * 14.0; // Rises from Y = -7.5 to Y = 6.5 (lens)
+          opacity = 1.0 - pct;
+        } else {
+          // Second half: completely gone
+          curY = 6.5;
+          opacity = 0;
+        }
+      } else {
+        // Past title: already vanished
+        curY = 6.5;
+        opacity = 0;
+      }
     }
 
     // Keep X centered (0) and Z locked exactly under the camera (Z = -115)
-    // The Y coordinate animates to fly straight from waves into the lens
     textRef.current.position.set(0, curY, -115);
 
     // Apply visibility and opacity
@@ -65,7 +93,7 @@ function AscendingWord({ index, text, fontSize = 1.5, color = "#F4F0E8", letterS
   return (
     <Text
       ref={textRef}
-      rotation={[-Math.PI / 2, 0, 0]} // Lies flat above waves, oriented horizontally (readable left-to-right from top camera view)
+      rotation={[-Math.PI / 2, 0, 0]} // Lies flat above waves, oriented horizontally (readable from top camera view)
       fontSize={fontSize}
       color={color}
       font="https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfAZ9hjp-Ek-_EeA.woff"
