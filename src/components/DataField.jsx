@@ -399,16 +399,14 @@ export default function DataField() {
     const time = state.clock.getElapsedTime();
     const rawScroll = scroll.offset || 0;
     
-    // Morph logic: active at the end of the scroll (0.80 to 0.99)
+    // Morph logic: active after the camera passes Title 5 (Klarheit at 0.9375)
     let morph = 0;
-    const cycle = rawScroll % 1.0;
+    const cycle = Math.min(rawScroll, 1.0); // Clamp to 1.0 instead of modulo to prevent disappearing at the end
     
-    if (cycle > 0.80 && cycle <= 0.88) {
-       morph = (cycle - 0.80) / 0.08; 
-    } else if (cycle > 0.88 && cycle <= 0.94) {
+    if (cycle > 0.94 && cycle <= 0.98) {
+       morph = (cycle - 0.94) / 0.04; 
+    } else if (cycle > 0.98) {
        morph = 1.0;
-    } else if (cycle > 0.94 && cycle <= 0.99) {
-       morph = 1.0 - (cycle - 0.94) / 0.05;
     }
 
     if (pointsMatRef.current) {

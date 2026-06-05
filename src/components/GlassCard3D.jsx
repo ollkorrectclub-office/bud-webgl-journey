@@ -104,6 +104,7 @@ function createInnerRoundedFrame(width, height, radius, thickness) {
 export default function GlassCard3D({ position, rotation, number, title, description, onEnter, isShattered }) {
   const groupRef = useRef();
   const shatterStartTime = useRef(null);
+  const rebuildStartTime = useRef(null);
 
   const handlePointerOver = () => { document.body.style.cursor = 'pointer'; };
   const handlePointerOut = () => { document.body.style.cursor = 'default'; };
@@ -144,7 +145,10 @@ export default function GlassCard3D({ position, rotation, number, title, descrip
         });
         return;
       } else {
-        shatterStartTime.current = null;
+        if (shatterStartTime.current !== null) {
+          shatterStartTime.current = null;
+          rebuildStartTime.current = state.clock.getElapsedTime();
+        }
       }
 
       // Calculate camera Z position and compute distance to the card's Z position
@@ -170,7 +174,18 @@ export default function GlassCard3D({ position, rotation, number, title, descrip
         opacity = 0;
       }
 
-      const targetOpacity = Math.max(0, Math.min(1, opacity));
+      let targetOpacity = Math.max(0, Math.min(1, opacity));
+      
+      // If we are recovering from a shatter state, smoothly fade the card back in over 0.6s
+      if (rebuildStartTime.current !== null) {
+        const elapsed = state.clock.getElapsedTime() - rebuildStartTime.current;
+        const rebuildDuration = 0.6;
+        if (elapsed >= rebuildDuration) {
+          rebuildStartTime.current = null;
+        } else {
+          targetOpacity *= (elapsed / rebuildDuration);
+        }
+      }
 
       // Hide entire group when invisible to skip all GPU work
       groupRef.current.visible = targetOpacity > 0.01;
