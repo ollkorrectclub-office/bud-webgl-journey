@@ -22,8 +22,7 @@ export default function App() {
         dpr={[1, 2]}
       >
         <color attach="background" args={['#08090b']} />
-        {/* Pushed fog far distance out so objects can be seen as shadows from much further away */}
-        <fog attach="fog" args={['#08090b', 20, 140]} />
+        <fog attach="fog" args={['#08090b', 10, 80]} />
         
         <Suspense fallback={null}>
           <ScrollControls pages={10} damping={0.2} distance={1}>
@@ -32,41 +31,43 @@ export default function App() {
             {/* The continuous living field */}
             <DataField />
             
-            {/* Cards discovered along the path (High performance HTML glass cards) */}
+            {/* Cards discovered along the path */}
             <GlassCard 
               position={[-3, -4, -20]} 
               number="01" 
-              title="Kunden verstehen" 
-              subtitle="Bedürfnisse, Erwartungen und Verhalten erkennen."
-              description="Wir hören zu, bevor wir bewerten. Durch direkte Gespräche gewinnen wir echte Einblicke in die Menschen hinter den Zahlen. So entstehen Entscheidungen auf Basis von Verständnis statt Vermutungen." 
+              title="Verstehen" 
+              description="Bedürfnisse, Erwartungen und Verhalten erkennen." 
             />
             
             <GlassCard 
               position={[3, -4, -40]} 
               number="02" 
               title="Märkte analysieren" 
-              subtitle="Chancen, Trends und Veränderungen frühzeitig erkennen."
-              description="Märkte verändern sich ständig. Wir helfen Unternehmen, relevante Entwicklungen früh zu erkennen, Signale richtig einzuordnen und Entscheidungen mit größerer Sicherheit zu treffen." 
+              description="Chancen, Trends und Veränderungen frühzeitig verstehen." 
             />
             
             <GlassCard 
               position={[-3, -4, -60]} 
               number="03" 
-              title="Leads generieren" 
-              subtitle="Die richtigen Kontakte identifizieren und gewinnen."
-              description="Wachstum beginnt mit den richtigen Gesprächen. Wir schaffen Verbindungen zu relevanten Entscheidern und eröffnen neue Geschäftsmöglichkeiten durch gezielte Ansprache und persönliche Kommunikation." 
+              title="Ideen validieren" 
+              description="Potenziale prüfen. Strategien schärfen." 
             />
- 
+
             <GlassCard 
               position={[3, -4, -80]} 
               number="04" 
-              title="Telefonumfragen" 
-              subtitle="Meinungen erfassen. Entscheidungen absichern."
-              description="Direkte Gespräche liefern Antworten, die keine Statistik allein zeigen kann. Mit strukturierten Telefonumfragen gewinnen wir wertvolle Einblicke in Einstellungen, Erwartungen und Bedürfnisse Ihrer Zielgruppe." 
+              title="Lösungen entwickeln" 
+              description="Konzepte in funktionale und messbare Ergebnisse verwandeln." 
             />
             
             {/* Words discovered ascending */}
             <ProcessWords />
+
+            <Scroll html>
+              <div style={{ position: 'absolute', top: '10vh', left: '10vw' }}>
+                {/* We can put UI here if needed, but cards are inside the 3D world */}
+              </div>
+            </Scroll>
           </ScrollControls>
           
           <PostProcessing />

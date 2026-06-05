@@ -12,13 +12,6 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
-  -ms-overflow-style: none; /* IE and Edge */
-  scrollbar-width: none; /* Firefox */
-}
-
-/* Hide scrollbar globally for Chrome, Safari and Opera */
-::-webkit-scrollbar {
-  display: none;
 }
 
 html, body, #root {
@@ -34,35 +27,24 @@ html, body, #root {
 }
 
 /* Glass Card Styles */
-/* Glass Card Styles */
 .glass-card {
-  background: rgba(10, 12, 16, 0.70); /* 70% opacity dark graphite background */
-  border: 1.5px solid rgba(200, 182, 138, 0.8); /* Solid outer champagne gold border */
-  border-radius: 24px;
-  backdrop-filter: blur(24px) saturate(140%);
-  -webkit-backdrop-filter: blur(24px) saturate(140%);
-  padding: 40px;
-  width: 460px;
+  background: linear-gradient(135deg, rgba(16, 18, 23, 0.6) 0%, rgba(30, 34, 43, 0.3) 100%);
+  border: 1px solid rgba(200, 182, 138, 0.3);
+  border-radius: 20px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  padding: 48px;
+  width: 420px;
   position: relative;
   overflow: hidden;
-  box-shadow: 
-    0 30px 60px rgba(0, 0, 0, 0.7), 
-    inset 0 1px 0 rgba(255, 255, 255, 0.15), /* Inner white bevel top edge highlight */
-    inset 0 0 0 1px rgba(255, 255, 255, 0.05), /* Inner white border line */
-    0 0 25px rgba(200, 182, 138, 0.25), /* Champagne gold outer glow */
-    0 0 50px rgba(179, 27, 90, 0.15); /* Magenta ambient outer glow */
-  transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.4s ease, border-color 0.4s ease;
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(200, 182, 138, 0.15);
+  transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.4s ease;
 }
 
 .glass-card:hover {
   transform: translateY(-5px) scale(1.02);
-  box-shadow: 
-    0 40px 80px rgba(0, 0, 0, 0.8), 
-    inset 0 1px 0 rgba(255, 255, 255, 0.20),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.10),
-    0 0 45px rgba(200, 182, 138, 0.45), /* Stronger Hover Glow */
-    0 0 80px rgba(179, 27, 90, 0.3); /* Stronger Magenta Hover */
-  border-color: rgba(200, 182, 138, 1.0);
+  box-shadow: 0 40px 80px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(200, 182, 138, 0.3);
+  border-color: rgba(200, 182, 138, 0.5);
 }
 
 .glass-card::before {
@@ -72,46 +54,36 @@ html, body, #root {
   left: 0;
   right: 0;
   height: 2px;
-  background: linear-gradient(90deg, transparent, rgba(200, 182, 138, 1.0), transparent);
-  opacity: 0.9;
-  box-shadow: 0 0 15px rgba(200, 182, 138, 1.0); /* Top edge light bloom */
+  background: linear-gradient(90deg, transparent, rgba(200, 182, 138, 0.8), transparent);
+  opacity: 0.6;
 }
 
 .card-number {
-  color: #b31b5a; /* Glowing Logo Magenta Pink */
-  text-shadow: 0 0 10px rgba(179, 27, 90, 0.8); /* Glow effect */
+  color: var(--bud-magenta);
   font-size: 15px;
   font-weight: 700;
   letter-spacing: 3px;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
   text-transform: uppercase;
   display: inline-block;
   padding: 6px 14px;
-  background: rgba(179, 27, 90, 0.12);
+  background: rgba(173, 23, 93, 0.1);
   border-radius: 20px;
-  border: 1px solid rgba(179, 27, 90, 0.3);
+  border: 1px solid rgba(173, 23, 93, 0.2);
 }
 
 .card-title {
-  font-size: 30px;
+  font-size: 36px;
   font-weight: 300;
-  margin-bottom: 12px;
-  color: var(--warm-white);
-  line-height: 1.25;
-}
-
-.card-subtitle {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--champagne);
   margin-bottom: 16px;
-  line-height: 1.4;
+  color: var(--warm-white);
+  line-height: 1.2;
 }
 
 .card-description {
-  font-size: 14px;
-  color: rgba(244, 240, 232, 0.75);
-  line-height: 1.6;
+  font-size: 17px;
+  color: rgba(244, 240, 232, 0.8);
+  line-height: 1.7;
   font-weight: 300;
 }
 

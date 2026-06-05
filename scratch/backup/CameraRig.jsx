@@ -19,10 +19,10 @@ const snapPoints = [
 
 const lookAtKeyframes = [
   { camZ: 20, target: new THREE.Vector3(0, -4, -20) },      // Start (looking ahead at Card 1)
-  { camZ: -11.0, target: new THREE.Vector3(-3, -4, -20) },  // Card 1
-  { camZ: -31.0, target: new THREE.Vector3(3, -4, -40) },   // Card 2
-  { camZ: -51.0, target: new THREE.Vector3(-3, -4, -60) },  // Card 3
-  { camZ: -71.0, target: new THREE.Vector3(3, -4, -80) },   // Card 4
+  { camZ: -15.0, target: new THREE.Vector3(-3, -4, -20) },  // Card 1
+  { camZ: -35.0, target: new THREE.Vector3(3, -4, -40) },   // Card 2
+  { camZ: -55.0, target: new THREE.Vector3(-3, -4, -60) },  // Card 3
+  { camZ: -75.0, target: new THREE.Vector3(3, -4, -80) },   // Card 4
   { camZ: -105.0, target: new THREE.Vector3(0, -1, -115) }, // Title 1
   { camZ: -120.0, target: new THREE.Vector3(0, -1, -130) }, // Title 2
   { camZ: -135.0, target: new THREE.Vector3(0, -1, -145) }, // Title 3
@@ -57,12 +57,11 @@ export default function CameraRig() {
   const scroll = useScroll();
   const activeStage = useRef(0);
   const lastScrollTime = useRef(0);
-  const cooldown = 400; // ms (reduced to make scroll snap highly responsive)
+  const cooldown = 1000; // ms (gives a nice travel time before enabling the next scroll)
   
   // Track current state separately from the ideal state to allow ultra-smooth lerping
   const currentPosition = useRef(new THREE.Vector3(0, 1, 20));
   const currentLookAt = useRef(new THREE.Vector3(0, -4, -20));
-  const prevIdealZ = useRef(null);
 
   // Define a simplified, wobblying-free cinematic camera path
   const curve = new THREE.CatmullRomCurve3([
@@ -70,19 +69,19 @@ export default function CameraRig() {
     new THREE.Vector3(0, -4, 0),       // Entering the field at card height (Y = -4, Z = 0)
     
     // Card 1 is at (-3, -4, -20)
-    new THREE.Vector3(-3, -4, -11.0),  // Linger in front of Card 1 (9.0 units away)
+    new THREE.Vector3(-3, -4, -15.0),  // Linger in front of Card 1 (closer, 5.0 units away)
     new THREE.Vector3(-3, -4, -20),    // Pass through Card 1
     
     // Card 2 is at (3, -4, -40)
-    new THREE.Vector3(3, -4, -31.0),   // Linger in front of Card 2 (9.0 units away)
+    new THREE.Vector3(3, -4, -35.0),   // Linger in front of Card 2 (closer, 5.0 units away)
     new THREE.Vector3(3, -4, -40),     // Pass through Card 2
     
     // Card 3 is at (-3, -4, -60)
-    new THREE.Vector3(-3, -4, -51.0),  // Linger in front of Card 3 (9.0 units away)
+    new THREE.Vector3(-3, -4, -55.0),  // Linger in front of Card 3 (closer, 5.0 units away)
     new THREE.Vector3(-3, -4, -60),    // Pass through Card 3
     
     // Card 4 is at (3, -4, -80)
-    new THREE.Vector3(3, -4, -71.0),   // Linger in front of Card 4 (9.0 units away)
+    new THREE.Vector3(3, -4, -75.0),   // Linger in front of Card 4 (closer, 5.0 units away)
     new THREE.Vector3(3, -4, -80),     // Pass through Card 4
     
     new THREE.Vector3(3, -4, -98.4),   // Keep straight in Card 4 lane to stabilize spline tension before centering
@@ -118,15 +117,15 @@ export default function CameraRig() {
 
       let changed = false;
       if (delta > 0) {
-        // Scroll down -> go next stage (no wrap-around)
+        // Scroll down -> go to next stage
         if (activeStage.current < snapPoints.length - 1) {
-          activeStage.current = activeStage.current + 1;
+          activeStage.current++;
           changed = true;
         }
       } else {
-        // Scroll up -> go previous stage (no wrap-around)
+        // Scroll up -> go to previous stage
         if (activeStage.current > 0) {
-          activeStage.current = activeStage.current - 1;
+          activeStage.current--;
           changed = true;
         }
       }
@@ -153,15 +152,15 @@ export default function CameraRig() {
 
       let changed = false;
       if (diffY > 0) {
-        // Swipe up -> scroll down -> go next stage (no wrap-around)
+        // Swipe up -> scroll down -> go next
         if (activeStage.current < snapPoints.length - 1) {
-          activeStage.current = activeStage.current + 1;
+          activeStage.current++;
           changed = true;
         }
       } else {
-        // Swipe down -> scroll up -> go previous stage (no wrap-around)
+        // Swipe down -> scroll up -> go previous
         if (activeStage.current > 0) {
-          activeStage.current = activeStage.current - 1;
+          activeStage.current--;
           changed = true;
         }
       }
@@ -225,19 +224,9 @@ export default function CameraRig() {
     // Calculate exactly where the camera SHOULD be looking based on our focus target
     const idealLookAt = getFocusTarget(idealPosition.z);
 
-    // If the Z jump between frames is very large, teleport instantly!
-    if (prevIdealZ.current !== null) {
-      const deltaZ = idealPosition.z - prevIdealZ.current;
-      if (Math.abs(deltaZ) > 100) {
-        currentPosition.current.copy(idealPosition);
-        currentLookAt.current.copy(idealLookAt);
-      }
-    }
-    prevIdealZ.current = idealPosition.z;
-
     // Frame-rate independent exponential asymptotic dampening
-    const positionDamp = 1 - Math.exp(-4.5 * delta); // Faster, tighter positional tracking for smooth travel
-    const lookAtDamp = 1 - Math.exp(-4.0 * delta);   // Faster, tighter rotation for solid cinematic feel
+    const positionDamp = 1 - Math.exp(-2.5 * delta); // Slower, heavier positional tracking for smooth travel
+    const lookAtDamp = 1 - Math.exp(-2.0 * delta);   // Slower, heavier rotation for solid cinematic feel
 
     // Smoothly drag the actual position and lookAt target towards the ideal targets
     currentPosition.current.lerp(idealPosition, positionDamp);

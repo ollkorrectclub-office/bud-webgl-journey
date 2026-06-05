@@ -251,7 +251,7 @@ export default function DataField() {
       vDistance = -mvPosition.z;
 
       #ifdef IS_POINTS
-        gl_PointSize = 2.5; // Normal sharp size
+        gl_PointSize = 2.5;
       #endif
     }
   `;
@@ -336,13 +336,13 @@ export default function DataField() {
 
         float alpha = smoothstep(0.5, 0.45, ll);
         float fogFactor = smoothstep(120.0, 20.0, vDistance);
-        float finalAlpha = alpha * fogFactor;
+        alpha *= fogFactor;
 
-        gl_FragColor = vec4(finalColor, finalAlpha);
+        gl_FragColor = vec4(finalColor, alpha);
       }
     `,
     transparent: true,
-    depthWrite: false,
+    depthWrite: true,
     blending: THREE.NormalBlending
   }), [vertexShader, cardPositions]);
 
