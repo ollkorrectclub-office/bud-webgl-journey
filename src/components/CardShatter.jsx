@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
 const PARTICLE_COUNT = 350;
-const DURATION = 2.8; // Slower, more majestic cinematic duration
+const DURATION = 2.8; // Majestic cinematic duration
 
 export default function CardShatter({ position, onComplete }) {
   const glowRef = useRef();
@@ -21,7 +21,6 @@ export default function CardShatter({ position, onComplete }) {
 
       // Calculate radial direction outward from the card center
       const angle = Math.atan2(y, x) + (Math.random() - 0.5) * 0.4;
-      const dist = Math.sqrt(x * x + y * y) || 1.0;
 
       // Cinematic speed profile: fast initial burst, then decelerating
       const speed = 2.5 + Math.random() * 5.0; // High speed for wide spread
@@ -29,15 +28,14 @@ export default function CardShatter({ position, onComplete }) {
       const vy = Math.sin(angle) * speed + 0.8 + Math.random() * 1.5; // Upward drift bias
 
       // High Z velocity variation to push particles past the camera lens (Z = 9.0)
-      // Since max Z traveled is vz * DURATION, a vz of 4.5 will reach 12.6 (well past camera)
       const vz = 0.5 + Math.random() * 5.5;
 
       const rx = (Math.random() - 0.5) * 5;
       const ry = (Math.random() - 0.5) * 5;
       const rz = (Math.random() - 0.5) * 5;
 
-      // 3D Sphere sizes: delicate glowing crystals/pearls
-      const scale = 0.04 + Math.random() * 0.12;
+      // Extremely small, delicate particles matching the wave point size
+      const scale = 0.05 + Math.random() * 0.1;
 
       return { x, y, vx, vy, vz, rx, ry, rz, scale };
     });
@@ -45,8 +43,8 @@ export default function CardShatter({ position, onComplete }) {
 
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const shardGeom = useMemo(() => {
-    // 3D sphere geometry makes particles look solid and round from any angle
-    return new THREE.SphereGeometry(0.3, 8, 8);
+    // Smaller sphere geometry to match wave particles
+    return new THREE.SphereGeometry(0.12, 6, 6);
   }, []);
 
   useEffect(() => {
@@ -109,11 +107,11 @@ export default function CardShatter({ position, onComplete }) {
 
   return (
     <group position={position}>
-      {/* 3D Champagne glowing particles */}
+      {/* 3D Champagne particles matching wave look and tone mapping */}
       <instancedMesh ref={glowRef} args={[shardGeom, null, PARTICLE_COUNT]} frustumCulled={false}>
         <meshBasicMaterial
-          color={[2.5, 1.8, 1.0]} // Brighter glow for cinematic bloom
-          toneMapped={false}
+          color="#C8B68A" // Champagne color matching the waves
+          toneMapped={true} // Enable standard tone mapping to avoid intense neon glowing
           transparent
           opacity={1}
           side={THREE.DoubleSide}
