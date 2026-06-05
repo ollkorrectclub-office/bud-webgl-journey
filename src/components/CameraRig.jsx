@@ -53,11 +53,11 @@ function getFocusTarget(camZ) {
   return new THREE.Vector3(0, -1, camZ - 15);
 }
 
-export default function CameraRig() {
+export default function CameraRig({ activeCard }) {
   const scroll = useScroll();
   const activeStage = useRef(0);
   const lastScrollTime = useRef(0);
-  const cooldown = 400; // ms (gives a nice travel time before enabling the next scroll)
+  const cooldown = 1000; // ms (gives a nice travel time before enabling the next scroll)
   
   // Track current state separately from the ideal state to allow ultra-smooth lerping
   const currentPosition = useRef(new THREE.Vector3(0, 1, 20));
@@ -115,18 +115,17 @@ export default function CameraRig() {
 
       const delta = e.deltaY;
       if (Math.abs(delta) < 10) return; // Ignore very small movements (flickering)
+      if (activeCard) return; // Disable scroll when viewing card detail
 
       let changed = false;
       if (delta > 0) {
-        if (activeStage.current < snapPoints.length - 1) {
-          activeStage.current = activeStage.current + 1;
-          changed = true;
-        }
+        // Scroll down -> go next stage (wrap if past end)
+        activeStage.current = (activeStage.current + 1) % snapPoints.length;
+        changed = true;
       } else {
-        if (activeStage.current > 0) {
-          activeStage.current = activeStage.current - 1;
-          changed = true;
-        }
+        // Scroll up -> go previous stage (wrap if past start)
+        activeStage.current = (activeStage.current - 1 + snapPoints.length) % snapPoints.length;
+        changed = true;
       }
 
       if (changed) {
@@ -148,18 +147,17 @@ export default function CameraRig() {
       const diffY = touchStartY - touchY;
 
       if (Math.abs(diffY) < 40) return; // Require a minimum swipe distance
+      if (activeCard) return; // Disable scroll when viewing card detail
 
       let changed = false;
       if (diffY > 0) {
-        if (activeStage.current < snapPoints.length - 1) {
-          activeStage.current = activeStage.current + 1;
-          changed = true;
-        }
+        // Swipe up -> scroll down -> go next stage (wrap if past end)
+        activeStage.current = (activeStage.current + 1) % snapPoints.length;
+        changed = true;
       } else {
-        if (activeStage.current > 0) {
-          activeStage.current = activeStage.current - 1;
-          changed = true;
-        }
+        // Swipe down -> scroll up -> go previous stage (wrap if past start)
+        activeStage.current = (activeStage.current - 1 + snapPoints.length) % snapPoints.length;
+        changed = true;
       }
 
       if (changed) {
@@ -216,10 +214,17 @@ export default function CameraRig() {
     }
 
     // Calculate exactly where the camera SHOULD be based on the scroll position
-    const idealPosition = curve.getPoint(t);
+    let idealPosition, idealLookAt;
     
-    // Calculate exactly where the camera SHOULD be looking based on our focus target
-    const idealLookAt = getFocusTarget(idealPosition.z);
+    if (activeCard) {
+      // Lock camera in front of the active card
+      const cp = activeCard.position;
+      idealPosition = new THREE.Vector3(cp[0], cp[1], cp[2] + 9.0);
+      idealLookAt = new THREE.Vector3(cp[0], cp[1], cp[2]);
+    } else {
+      idealPosition = curve.getPoint(t);
+      idealLookAt = getFocusTarget(idealPosition.z);
+    }
 
     // If the Z jump between frames is very large, teleport instantly!
     if (prevIdealZ.current !== null) {
@@ -232,8 +237,8 @@ export default function CameraRig() {
     prevIdealZ.current = idealPosition.z;
 
     // Frame-rate independent exponential asymptotic dampening
-    const positionDamp = 1 - Math.exp(-4.5 * delta); // Faster, tight positional tracking for responsive feel
-    const lookAtDamp = 1 - Math.exp(-4.0 * delta);   // Faster, tight rotation for solid responsive feel
+    const positionDamp = 1 - Math.exp(-2.5 * delta); // Slower, heavier positional tracking for smooth travel
+    const lookAtDamp = 1 - Math.exp(-2.0 * delta);   // Slower, heavier rotation for solid cinematic feel
 
     // Smoothly drag the actual position and lookAt target towards the ideal targets
     currentPosition.current.lerp(idealPosition, positionDamp);

@@ -226,7 +226,7 @@ export default function DataField() {
       pos.y += sin(pos.x * 0.05 + pos.z * 0.05 + time * 0.5) * 0.5;
       
       vHeight = pos.y; // Save height for shading BEFORE the logo morph
- 
+
       // --- LOGO MORPH PHYSICS ---
       float randomSeed = fract(sin(dot(customLogoTarget.xy, vec2(12.9898, 78.233))) * 43758.5453);
       float localProgress = smoothstep(randomSeed * 0.3, randomSeed * 0.3 + 0.7, uMorphProgress);
@@ -251,7 +251,7 @@ export default function DataField() {
       vDistance = -mvPosition.z;
 
       #ifdef IS_POINTS
-        gl_PointSize = 2.5; // Normal sharp size
+        gl_PointSize = 2.5;
       #endif
     }
   `;
@@ -337,12 +337,12 @@ export default function DataField() {
         float alpha = smoothstep(0.5, 0.45, ll);
         float fogFactor = smoothstep(120.0, 20.0, vDistance);
         float finalAlpha = alpha * fogFactor;
-
-        gl_FragColor = vec4(finalColor, finalAlpha);
+        if (finalAlpha < 0.15) discard;
+        gl_FragColor = vec4(finalColor, 1.0);
       }
     `,
-    transparent: true,
-    depthWrite: false,
+    transparent: false,
+    depthWrite: true,
     blending: THREE.NormalBlending
   }), [vertexShader, cardPositions]);
 
