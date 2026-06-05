@@ -336,12 +336,12 @@ export default function DataField() {
 
         float alpha = smoothstep(0.5, 0.45, ll);
         float fogFactor = smoothstep(120.0, 20.0, vDistance);
-        alpha *= fogFactor;
-
-        gl_FragColor = vec4(finalColor, alpha);
+        float finalAlpha = alpha * fogFactor;
+        if (finalAlpha < 0.15) discard;
+        gl_FragColor = vec4(finalColor, 1.0);
       }
     `,
-    transparent: true,
+    transparent: false,
     depthWrite: true,
     blending: THREE.NormalBlending
   }), [vertexShader, cardPositions]);
