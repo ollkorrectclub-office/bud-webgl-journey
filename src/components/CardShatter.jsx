@@ -2,11 +2,10 @@ import React, { useRef, useMemo, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
-const PARTICLE_COUNT = 400;
-const DURATION = 1.6;
+const PARTICLE_COUNT = 300;
+const DURATION = 2.0; // Slightly longer duration for a slower, more graceful fade
 
 export default function CardShatter({ position, onComplete }) {
-  const darkRef = useRef();
   const glowRef = useRef();
   const startTime = useRef(null);
   const completed = useRef(false);
@@ -19,19 +18,22 @@ export default function CardShatter({ position, onComplete }) {
       const x = (Math.random() - 0.5) * width;
       const y = (Math.random() - 0.5) * height;
 
+      // Normalized coordinates from center
       const dx = x / (width / 2);
       const dy = y / (height / 2);
 
-      const speed = 2 + Math.random() * 6;
-      const vx = dx * speed + (Math.random() - 0.5) * 2;
-      const vy = dy * speed + Math.random() * 3;
-      const vz = Math.random() * 5 + 1;
+      // Slower, elegant floating velocities: drift outward, upward, and forward
+      const speed = 0.4 + Math.random() * 1.0;
+      const vx = dx * speed + (Math.random() - 0.5) * 0.3;
+      const vy = dy * speed + 0.4 + Math.random() * 0.6; // gentle upward lift
+      const vz = 1.0 + Math.random() * 2.0; // drift towards camera
 
-      const rx = (Math.random() - 0.5) * 12;
-      const ry = (Math.random() - 0.5) * 12;
-      const rz = (Math.random() - 0.5) * 12;
+      const rx = (Math.random() - 0.5) * 3;
+      const ry = (Math.random() - 0.5) * 3;
+      const rz = (Math.random() - 0.5) * 3;
 
-      const scale = 0.04 + Math.random() * 0.14;
+      // Small, delicate glowing dust particles
+      const scale = 0.02 + Math.random() * 0.08;
 
       return { x, y, vx, vy, vz, rx, ry, rz, scale };
     });
@@ -39,57 +41,25 @@ export default function CardShatter({ position, onComplete }) {
 
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const shardGeom = useMemo(() => {
-    return new THREE.CircleGeometry(0.5, 16);
+    return new THREE.CircleGeometry(0.4, 8); // Simple, efficient circular shapes
   }, []);
 
   useEffect(() => {
-    const colors = [
-      new THREE.Color(2.0, 1.4, 0.7), // Champagne Gold (glowing)
-      new THREE.Color(3.0, 0.3, 1.4), // Bud Magenta (glowing)
-      new THREE.Color(0.8, 1.2, 1.8), // Steel Blue (glowing)
-    ];
-
-    if (darkRef.current) {
+    if (glowRef.current) {
       particles.forEach((p, i) => {
         dummy.position.set(p.x, p.y, 0);
         dummy.scale.set(p.scale, p.scale, p.scale);
         dummy.rotation.set(0, 0, Math.random() * Math.PI * 2);
         dummy.updateMatrix();
-        darkRef.current.setMatrixAt(i, dummy.matrix);
-      });
-      darkRef.current.instanceMatrix.needsUpdate = true;
-    }
-
-    if (glowRef.current) {
-      particles.forEach((p, i) => {
-        dummy.position.set(p.x, p.y, 0);
-        dummy.scale.set(p.scale * 0.9, p.scale * 0.9, p.scale * 0.9); // Slightly smaller glowing core
-        dummy.rotation.set(0, 0, Math.random() * Math.PI * 2);
-        dummy.updateMatrix();
         glowRef.current.setMatrixAt(i, dummy.matrix);
-
-        // Assign a color based on some distribution
-        const rand = Math.random();
-        let color;
-        if (rand > 0.6) {
-          color = colors[1]; // Magenta
-        } else if (rand > 0.2) {
-          color = colors[0]; // Champagne Gold
-        } else {
-          color = colors[2]; // Steel Blue
-        }
-        glowRef.current.setColorAt(i, color);
       });
       glowRef.current.instanceMatrix.needsUpdate = true;
-      if (glowRef.current.instanceColor) {
-        glowRef.current.instanceColor.needsUpdate = true;
-      }
     }
   }, [particles, dummy]);
 
   useFrame((state) => {
     if (completed.current) return;
-    if (!darkRef.current || !glowRef.current) return;
+    if (!glowRef.current) return;
 
     if (startTime.current === null) {
       startTime.current = state.clock.getElapsedTime();
@@ -97,29 +67,31 @@ export default function CardShatter({ position, onComplete }) {
 
     const elapsed = state.clock.getElapsedTime() - startTime.current;
     const progress = Math.min(elapsed / DURATION, 1);
-    const eased = 1 - Math.pow(1 - progress, 3);
+    
+    // Smooth quintic ease-out so particles decelerate and disappear gracefully
+    const eased = 1 - Math.pow(1 - progress, 5);
 
     particles.forEach((p, i) => {
       const t = elapsed;
       dummy.position.set(
         p.x + p.vx * t,
-        p.y + p.vy * t - 3.5 * t * t,
-        p.vz * t
+        p.y + p.vy * t + 0.1 * t * t, // light upward acceleration (anti-gravity drift)
+        p.vz * t // drifting forward to create 3D depth
       );
       dummy.rotation.set(p.rx * t, p.ry * t, p.rz * t);
+      
       const fadeScale = p.scale * Math.max(0, 1 - eased);
       dummy.scale.set(fadeScale, fadeScale, fadeScale);
       dummy.updateMatrix();
-      darkRef.current.setMatrixAt(i, dummy.matrix);
       glowRef.current.setMatrixAt(i, dummy.matrix);
     });
 
-    darkRef.current.instanceMatrix.needsUpdate = true;
     glowRef.current.instanceMatrix.needsUpdate = true;
 
     const alpha = Math.max(0, 1 - eased);
-    if (darkRef.current.material) darkRef.current.material.opacity = alpha * 0.7;
-    if (glowRef.current.material) glowRef.current.material.opacity = alpha;
+    if (glowRef.current.material) {
+      glowRef.current.material.opacity = alpha;
+    }
 
     if (progress >= 1 && !completed.current) {
       completed.current = true;
@@ -129,20 +101,10 @@ export default function CardShatter({ position, onComplete }) {
 
   return (
     <group position={position}>
-      {/* Dark glass shards */}
-      <instancedMesh ref={darkRef} args={[shardGeom, null, PARTICLE_COUNT]} frustumCulled={false}>
-        <meshBasicMaterial
-          color="#080810"
-          transparent
-          opacity={0.7}
-          side={THREE.DoubleSide}
-          depthWrite={false}
-        />
-      </instancedMesh>
-      {/* Champagne gold glowing shards (bloom) */}
+      {/* Pure champagne gold glowing particles (bloom enabled) */}
       <instancedMesh ref={glowRef} args={[shardGeom, null, PARTICLE_COUNT]} frustumCulled={false}>
         <meshBasicMaterial
-          color="#ffffff"
+          color={[2.2, 1.6, 0.9]} // Champagne Gold emissive tone
           toneMapped={false}
           transparent
           opacity={1}
