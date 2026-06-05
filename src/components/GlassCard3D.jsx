@@ -147,7 +147,7 @@ export default function GlassCard3D({ position, rotation, number, title, descrip
         <Text
           position={[0, 1.2, 0]}
           fontSize={0.2}
-          color={[1.2, 0.1, 0.55]} // Matching Magenta Pink Glow from Logo
+          color="#b31b5a" // Matching Magenta Pink from Logo
           anchorX="left"
           anchorY="middle"
           letterSpacing={0.1}
