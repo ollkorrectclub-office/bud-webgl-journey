@@ -206,13 +206,14 @@ html, body, #root {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  background: rgba(8, 9, 11, 0.88);
-  backdrop-filter: blur(30px);
-  -webkit-backdrop-filter: blur(30px);
+  justify-content: flex-start;
+  background: rgba(8, 9, 11, 0.35); /* More transparent to see the moving waves background */
+  backdrop-filter: blur(8px); /* Lower blur so the wave animations remain recognizable and active */
+  -webkit-backdrop-filter: blur(8px);
   opacity: 0;
   transition: opacity 0.5s ease;
   overflow-y: auto;
+  padding: 80px 0;
 }
 
 .card-detail-overlay.card-detail-enter {
@@ -262,7 +263,19 @@ html, body, #root {
 .card-detail-content {
   max-width: 760px;
   width: 90%;
-  padding: 60px 0;
+  background: rgba(10, 12, 16, 0.65); /* Frosted dark glass container */
+  border: 1px solid rgba(200, 182, 138, 0.45); /* Champagne Gold border frame */
+  border-radius: 24px;
+  backdrop-filter: blur(24px) saturate(150%); /* Inside the container, waves blur more for text legibility */
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  padding: 56px;
+  box-shadow: 
+    0 40px 80px rgba(0, 0, 0, 0.65), 
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 0 40px rgba(200, 182, 138, 0.15),
+    0 0 60px rgba(173, 23, 93, 0.08); /* Ambient magenta glow */
+  margin: auto;
+  position: relative;
 }
 
 .card-detail-number {

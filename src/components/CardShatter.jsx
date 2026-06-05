@@ -39,26 +39,52 @@ export default function CardShatter({ position, onComplete }) {
 
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const shardGeom = useMemo(() => {
-    const shape = new THREE.Shape();
-    shape.moveTo(0, 0.5);
-    shape.lineTo(-0.43, -0.25);
-    shape.lineTo(0.43, -0.25);
-    shape.closePath();
-    return new THREE.ShapeGeometry(shape);
+    return new THREE.CircleGeometry(0.5, 16);
   }, []);
 
   useEffect(() => {
-    [darkRef, glowRef].forEach((ref) => {
-      if (!ref.current) return;
+    const colors = [
+      new THREE.Color(2.0, 1.4, 0.7), // Champagne Gold (glowing)
+      new THREE.Color(3.0, 0.3, 1.4), // Bud Magenta (glowing)
+      new THREE.Color(0.8, 1.2, 1.8), // Steel Blue (glowing)
+    ];
+
+    if (darkRef.current) {
       particles.forEach((p, i) => {
         dummy.position.set(p.x, p.y, 0);
         dummy.scale.set(p.scale, p.scale, p.scale);
         dummy.rotation.set(0, 0, Math.random() * Math.PI * 2);
         dummy.updateMatrix();
-        ref.current.setMatrixAt(i, dummy.matrix);
+        darkRef.current.setMatrixAt(i, dummy.matrix);
       });
-      ref.current.instanceMatrix.needsUpdate = true;
-    });
+      darkRef.current.instanceMatrix.needsUpdate = true;
+    }
+
+    if (glowRef.current) {
+      particles.forEach((p, i) => {
+        dummy.position.set(p.x, p.y, 0);
+        dummy.scale.set(p.scale * 0.9, p.scale * 0.9, p.scale * 0.9); // Slightly smaller glowing core
+        dummy.rotation.set(0, 0, Math.random() * Math.PI * 2);
+        dummy.updateMatrix();
+        glowRef.current.setMatrixAt(i, dummy.matrix);
+
+        // Assign a color based on some distribution
+        const rand = Math.random();
+        let color;
+        if (rand > 0.6) {
+          color = colors[1]; // Magenta
+        } else if (rand > 0.2) {
+          color = colors[0]; // Champagne Gold
+        } else {
+          color = colors[2]; // Steel Blue
+        }
+        glowRef.current.setColorAt(i, color);
+      });
+      glowRef.current.instanceMatrix.needsUpdate = true;
+      if (glowRef.current.instanceColor) {
+        glowRef.current.instanceColor.needsUpdate = true;
+      }
+    }
   }, [particles, dummy]);
 
   useFrame((state) => {
@@ -116,7 +142,7 @@ export default function CardShatter({ position, onComplete }) {
       {/* Champagne gold glowing shards (bloom) */}
       <instancedMesh ref={glowRef} args={[shardGeom, null, PARTICLE_COUNT]} frustumCulled={false}>
         <meshBasicMaterial
-          color={[2.0, 1.5, 0.8]}
+          color="#ffffff"
           toneMapped={false}
           transparent
           opacity={1}
