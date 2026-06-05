@@ -3,7 +3,8 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
 const PARTICLE_COUNT = 400;
-const DURATION = 2.4; // Elegant, majestic transition duration
+const DURATION = 1.2; // Faster transition duration
+
 
 // Helper to sample coordinates and normal vectors along a rounded rectangle perimeter
 function sampleRoundedRect(w, h, r) {
