@@ -99,8 +99,8 @@ export default function GlassCard3D({ position, rotation, number, title, descrip
       // Apply opacity to all materials inside this card
       groupRef.current.traverse((child) => {
         if (child.material) {
-          // The dark glass panel has a max opacity of 0.55, everything else is 1.0
-          const maxOpacity = child.material.type === 'MeshPhysicalMaterial' ? 0.55 : 1.0;
+          // The dark glass panel has a max opacity of 0.70, everything else is 1.0
+          const maxOpacity = child.material.type === 'MeshPhysicalMaterial' ? 0.70 : 1.0;
           child.material.opacity = targetOpacity * maxOpacity;
           // Hide completely when invisible to prevent ghosting from refraction
           child.visible = targetOpacity > 0.01;
@@ -123,7 +123,7 @@ export default function GlassCard3D({ position, rotation, number, title, descrip
         <meshPhysicalMaterial 
           color="#0a0c10"
           transmission={0.0}
-          opacity={0.55}
+          opacity={0.70}
           transparent
           metalness={0.1}
           roughness={0.1}
@@ -147,7 +147,7 @@ export default function GlassCard3D({ position, rotation, number, title, descrip
         <Text
           position={[0, 1.2, 0]}
           fontSize={0.2}
-          color={[2.0, 1.4, 0.8]} // Matching Champagne Gold Glow
+          color={[1.2, 0.1, 0.55]} // Matching Magenta Pink Glow from Logo
           anchorX="left"
           anchorY="middle"
           letterSpacing={0.1}
