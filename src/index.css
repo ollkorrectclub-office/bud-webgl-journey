@@ -35,20 +35,21 @@ html, body, #root {
 
 /* Glass Card Styles */
 .glass-card {
-  background: linear-gradient(135deg, rgba(20, 25, 35, 0.4) 0%, rgba(10, 15, 20, 0.2) 100%);
-  border: 1px solid rgba(200, 182, 138, 0.6);
+  background: rgba(10, 12, 16, 0.70); /* Strict 70% opacity dark graphite background */
+  border: 1.5px solid rgba(200, 182, 138, 0.85); /* Outer Champagne Gold border */
   border-radius: 20px;
-  backdrop-filter: blur(24px) saturate(150%);
-  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  backdrop-filter: blur(24px) saturate(140%);
+  -webkit-backdrop-filter: blur(24px) saturate(140%);
   padding: 48px;
   width: 480px;
   position: relative;
   overflow: hidden;
   box-shadow: 
     0 30px 60px rgba(0, 0, 0, 0.6), 
-    inset 0 1px 0 rgba(200, 182, 138, 0.4),
-    0 0 30px rgba(200, 182, 138, 0.2), /* Outer Glow */
-    0 0 60px rgba(173, 23, 93, 0.15); /* Magenta ambient glow */
+    inset 0 1px 0 rgba(255, 255, 255, 0.15), /* Inner white bevel top highlight */
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05), /* Inner white edge */
+    0 0 25px rgba(200, 182, 138, 0.25), /* Outer Gold Glow */
+    0 0 50px rgba(179, 27, 90, 0.15); /* Outer Magenta ambient glow */
   transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.4s ease;
 }
 
@@ -56,9 +57,10 @@ html, body, #root {
   transform: translateY(-5px) scale(1.02);
   box-shadow: 
     0 40px 80px rgba(0, 0, 0, 0.7), 
-    inset 0 1px 0 rgba(200, 182, 138, 0.6),
-    0 0 45px rgba(200, 182, 138, 0.4), /* Stronger Hover Glow */
-    0 0 80px rgba(173, 23, 93, 0.3); /* Stronger Magenta Hover */
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.1),
+    0 0 45px rgba(200, 182, 138, 0.45), /* Stronger Hover Glow */
+    0 0 80px rgba(179, 27, 90, 0.3); /* Stronger Magenta Hover Glow */
   border-color: rgba(200, 182, 138, 1.0);
 }
 
@@ -75,7 +77,8 @@ html, body, #root {
 }
 
 .card-number {
-  color: var(--bud-magenta);
+  color: #b31b5a; /* Matching Magenta Pink from Logo */
+  text-shadow: 0 0 8px rgba(179, 27, 90, 0.8); /* Glow effect */
   font-size: 15px;
   font-weight: 700;
   letter-spacing: 3px;
@@ -83,9 +86,9 @@ html, body, #root {
   text-transform: uppercase;
   display: inline-block;
   padding: 6px 14px;
-  background: rgba(173, 23, 93, 0.1);
+  background: rgba(179, 27, 90, 0.12);
   border-radius: 20px;
-  border: 1px solid rgba(173, 23, 93, 0.2);
+  border: 1px solid rgba(179, 27, 90, 0.3);
 }
 
 .card-title {
@@ -98,7 +101,7 @@ html, body, #root {
 
 .card-description {
   font-size: 17px;
-  color: rgba(244, 240, 232, 0.8);
+  color: rgba(244, 240, 232, 0.85);
   line-height: 1.7;
   font-weight: 300;
 }

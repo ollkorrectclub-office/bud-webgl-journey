@@ -3,7 +3,7 @@ import { Canvas } from '@react-three/fiber';
 import { ScrollControls, Scroll, Html } from '@react-three/drei';
 import DataField from './components/DataField';
 import CameraRig from './components/CameraRig';
-import GlassCard3D from './components/GlassCard3D';
+import GlassCard from './components/GlassCard';
 import ProcessWords from './components/ProcessWords';
 import PostProcessing from './components/PostProcessing';
 import './index.css';
@@ -32,29 +32,29 @@ export default function App() {
             {/* The continuous living field */}
             <DataField />
             
-            {/* Cards discovered along the path (Now completely native 3D WebGL objects!) */}
-            <GlassCard3D 
+            {/* Cards discovered along the path (Premium 3D HTML glassmorphism!) */}
+            <GlassCard 
               position={[-3, -4, -20]} 
               number="01" 
               title="Verstehen" 
               description="Bedürfnisse, Erwartungen und Verhalten erkennen." 
             />
             
-            <GlassCard3D 
+            <GlassCard 
               position={[3, -4, -40]} 
               number="02" 
               title="Märkte analysieren" 
               description="Chancen, Trends und Veränderungen frühzeitig verstehen." 
             />
             
-            <GlassCard3D 
+            <GlassCard 
               position={[-3, -4, -60]} 
               number="03" 
               title="Ideen validieren" 
               description="Potenziale prüfen. Strategien schärfen." 
             />
  
-            <GlassCard3D 
+            <GlassCard 
               position={[3, -4, -80]} 
               number="04" 
               title="Lösungen entwickeln" 

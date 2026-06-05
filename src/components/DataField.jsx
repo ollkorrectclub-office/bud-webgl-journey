@@ -251,7 +251,7 @@ export default function DataField() {
       vDistance = -mvPosition.z;
 
       #ifdef IS_POINTS
-        gl_PointSize = 2.5;
+        gl_PointSize = 2.5; // Fixed sharp size for peak performance
       #endif
     }
   `;
@@ -303,7 +303,6 @@ export default function DataField() {
         finalColor += champagneLight * vWake * 2.5;
 
         // --- ELECTRICITY DATA STREAMS ---
-        // Quantize X to precisely target specific columns in the 0.6-spaced grid
         float gridLineX = floor(vPosXZ.x / 0.6);
         float hashX = fract(sin(gridLineX * 12.9898) * 43758.5453);
         float hasElecZ = step(0.96, hashX); // 4% of columns active
@@ -337,12 +336,12 @@ export default function DataField() {
         float alpha = smoothstep(0.5, 0.45, ll);
         float fogFactor = smoothstep(120.0, 20.0, vDistance);
         float finalAlpha = alpha * fogFactor;
-        if (finalAlpha < 0.15) discard;
-        gl_FragColor = vec4(finalColor, 1.0);
+
+        gl_FragColor = vec4(finalColor, finalAlpha);
       }
     `,
-    transparent: false,
-    depthWrite: true,
+    transparent: true,
+    depthWrite: false,
     blending: THREE.NormalBlending
   }), [vertexShader, cardPositions]);
 

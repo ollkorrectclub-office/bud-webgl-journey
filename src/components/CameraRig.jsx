@@ -57,7 +57,7 @@ export default function CameraRig() {
   const scroll = useScroll();
   const activeStage = useRef(0);
   const lastScrollTime = useRef(0);
-  const cooldown = 1000; // ms (gives a nice travel time before enabling the next scroll)
+  const cooldown = 400; // ms (gives a nice travel time before enabling the next scroll)
   
   // Track current state separately from the ideal state to allow ultra-smooth lerping
   const currentPosition = useRef(new THREE.Vector3(0, 1, 20));
@@ -118,13 +118,17 @@ export default function CameraRig() {
 
       let changed = false;
       if (delta > 0) {
-        // Scroll down -> go next stage (wrap if past end)
-        activeStage.current = (activeStage.current + 1) % snapPoints.length;
-        changed = true;
+        // Scroll down -> go next stage without wrapping
+        if (activeStage.current < snapPoints.length - 1) {
+          activeStage.current += 1;
+          changed = true;
+        }
       } else {
-        // Scroll up -> go previous stage (wrap if past start)
-        activeStage.current = (activeStage.current - 1 + snapPoints.length) % snapPoints.length;
-        changed = true;
+        // Scroll up -> go previous stage without wrapping
+        if (activeStage.current > 0) {
+          activeStage.current -= 1;
+          changed = true;
+        }
       }
 
       if (changed) {
@@ -149,13 +153,17 @@ export default function CameraRig() {
 
       let changed = false;
       if (diffY > 0) {
-        // Swipe up -> scroll down -> go next stage (wrap if past end)
-        activeStage.current = (activeStage.current + 1) % snapPoints.length;
-        changed = true;
+        // Swipe up -> scroll down -> go next stage without wrapping
+        if (activeStage.current < snapPoints.length - 1) {
+          activeStage.current += 1;
+          changed = true;
+        }
       } else {
-        // Swipe down -> scroll up -> go previous stage (wrap if past start)
-        activeStage.current = (activeStage.current - 1 + snapPoints.length) % snapPoints.length;
-        changed = true;
+        // Swipe down -> scroll up -> go previous stage without wrapping
+        if (activeStage.current > 0) {
+          activeStage.current -= 1;
+          changed = true;
+        }
       }
 
       if (changed) {
@@ -227,9 +235,9 @@ export default function CameraRig() {
     }
     prevIdealZ.current = idealPosition.z;
 
-    // Frame-rate independent exponential asymptotic dampening
-    const positionDamp = 1 - Math.exp(-2.5 * delta); // Slower, heavier positional tracking for smooth travel
-    const lookAtDamp = 1 - Math.exp(-2.0 * delta);   // Slower, heavier rotation for solid cinematic feel
+    // Frame-rate independent exponential asymptotic dampening (increased speed for tightness)
+    const positionDamp = 1 - Math.exp(-4.5 * delta); // Positional tracking
+    const lookAtDamp = 1 - Math.exp(-4.0 * delta);   // Rotation tracking
 
     // Smoothly drag the actual position and lookAt target towards the ideal targets
     currentPosition.current.lerp(idealPosition, positionDamp);

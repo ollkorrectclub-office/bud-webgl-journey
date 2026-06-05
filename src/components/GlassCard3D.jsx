@@ -1,6 +1,6 @@
 import React, { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Text, MeshTransmissionMaterial } from '@react-three/drei';
+import { Text } from '@react-three/drei';
 import * as THREE from 'three';
 
 // Custom geometry for a perfect flat rounded rectangle
@@ -163,19 +163,17 @@ export default function GlassCard3D({ position, rotation, number, title, descrip
     <group ref={groupRef} position={position} rotation={rotation || [0, 0, 0]}>
       {/* The Dark Glass Panel */}
       <mesh geometry={geometry}>
-        <MeshTransmissionMaterial 
+        <meshPhysicalMaterial 
           name="glassPanelMaterial"
           color="#0a0c10"
-          transmission={0.6} // High transmission to allow blurred background elements to pass through
+          transmission={0.0} // Disable expensive refraction pass to restore performance
           opacity={0.70} // Maintain the requested 70% opacity
           transparent
-          roughness={0.25} // Surface roughness (creates the beautiful frosted blur of the background waves!)
-          thickness={1.5} // Physical refraction thickness
-          ior={1.5} // Index of Refraction for realistic glass bending
-          chromaticAberration={0.02} // Subtle chromatic aberration for a premium refractive feel
-          anisotropy={0.1}
-          clearcoat={1.0}
+          metalness={0.2}
+          roughness={0.05} // Smooth surface for reflections
+          clearcoat={1.0} // Maximum clearcoat shine
           clearcoatRoughness={0.05}
+          reflectivity={0.9}
         />
         
         {/* Subtle glass edge highlight (white/champagne) to enhance the glassmorphism look */}
