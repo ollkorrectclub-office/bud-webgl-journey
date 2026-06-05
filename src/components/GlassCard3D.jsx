@@ -103,6 +103,7 @@ function createInnerRoundedFrame(width, height, radius, thickness) {
 
 export default function GlassCard3D({ position, rotation, number, title, description, onEnter, isShattered }) {
   const groupRef = useRef();
+  const shatterStartTime = useRef(null);
 
   const handlePointerOver = () => { document.body.style.cursor = 'pointer'; };
   const handlePointerOut = () => { document.body.style.cursor = 'default'; };
@@ -117,6 +118,34 @@ export default function GlassCard3D({ position, rotation, number, title, descrip
     if (groupRef.current) {
       // Gentle floating
       groupRef.current.position.y = position[1] + Math.sin(time * 1.5 + position[0]) * 0.15;
+
+      // When shattered, smoothly fade out the entire card box with texts/CTA
+      if (isShattered) {
+        if (shatterStartTime.current === null) {
+          shatterStartTime.current = state.clock.getElapsedTime();
+        }
+        const elapsed = state.clock.getElapsedTime() - shatterStartTime.current;
+        const fadeOutDuration = 0.8; // Smooth 0.8s fade out to blend with stardust
+        const shatterOpacity = Math.max(0, 1 - elapsed / fadeOutDuration);
+
+        if (shatterOpacity <= 0.001) {
+          groupRef.current.visible = false;
+          return;
+        }
+
+        groupRef.current.visible = true;
+        groupRef.current.traverse((child) => {
+          if (child.material) {
+            const maxOpacity = child.material.name === 'glassEdgeMaterial' 
+              ? 0.12 
+              : (child.material.name === 'glassPanelMaterial' ? 0.55 : 1.0);
+            child.material.opacity = shatterOpacity * maxOpacity;
+          }
+        });
+        return;
+      } else {
+        shatterStartTime.current = null;
+      }
 
       // Calculate camera Z position and compute distance to the card's Z position
       const camZ = state.camera.position.z;
@@ -142,12 +171,6 @@ export default function GlassCard3D({ position, rotation, number, title, descrip
       }
 
       const targetOpacity = Math.max(0, Math.min(1, opacity));
-
-      // When shattered, hide card entirely (shatter particles replace it)
-      if (isShattered) {
-        groupRef.current.visible = false;
-        return;
-      }
 
       // Hide entire group when invisible to skip all GPU work
       groupRef.current.visible = targetOpacity > 0.01;
