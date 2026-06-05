@@ -69,49 +69,7 @@ function sampleRoundedRect(w, h, r) {
   return { x: px, y: py, nx, ny };
 }
 
-// Custom geometry for a rounded rectangle border frame
-function createRoundedFrame(width, height, radius, thickness) {
-  const shape = new THREE.Shape();
-  
-  const ow = width + 2 * thickness;
-  const oh = height + 2 * thickness;
-  const or = radius + thickness;
-  const ox = -ow / 2;
-  const oy = -oh / 2;
-
-  // Outer contour (counter-clockwise)
-  shape.moveTo(ox, oy + or);
-  shape.lineTo(ox, oy + oh - or);
-  shape.quadraticCurveTo(ox, oy + oh, ox + or, oy + oh);
-  shape.lineTo(ox + ow - or, oy + oh);
-  shape.quadraticCurveTo(ox + ow, oy + oh, ox + ow, oy + oh - or);
-  shape.lineTo(ox + ow, oy + or);
-  shape.quadraticCurveTo(ox + ow, oy, ox + ow - or, oy);
-  shape.lineTo(ox + or, oy);
-  shape.quadraticCurveTo(ox, oy, ox, oy + or);
-
-  // Inner contour (clockwise) to create a hole
-  const hole = new THREE.Path();
-  const ix = -width / 2;
-  const iy = -height / 2;
-
-  hole.moveTo(ix, iy + height - radius);
-  hole.lineTo(ix, iy + radius);
-  hole.quadraticCurveTo(ix, iy, ix + radius, iy);
-  hole.lineTo(ix + width - radius, iy);
-  hole.quadraticCurveTo(ix + width, iy, ix + width, iy + radius);
-  hole.lineTo(ix + width, iy + height - radius);
-  hole.quadraticCurveTo(ix + width, iy + height, ix + width - radius, iy + height);
-  hole.lineTo(ix + radius, iy + height);
-  hole.quadraticCurveTo(ix, iy + height, ix, iy + height - radius);
-  hole.closePath();
-
-  shape.holes.push(hole);
-  return new THREE.ShapeGeometry(shape, 32);
-}
-
 export default function CardShatter({ position, onComplete }) {
-  const lineRef = useRef();
   const glowRef = useRef();
   const startTime = useRef(null);
   const completed = useRef(false);
@@ -141,10 +99,6 @@ export default function CardShatter({ position, onComplete }) {
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const shardGeom = useMemo(() => {
     return new THREE.SphereGeometry(0.12, 6, 6);
-  }, []);
-
-  const frameGeometry = useMemo(() => {
-    return createRoundedFrame(6, 4, 0.3, 0.03);
   }, []);
 
   useEffect(() => {
@@ -192,15 +146,11 @@ export default function CardShatter({ position, onComplete }) {
 
     glowRef.current.instanceMatrix.needsUpdate = true;
 
-    // Fade opacity out smoothly for both the outline frame and the particles
+    // Fade opacity out smoothly
     const alpha = Math.max(0, 1 - progress);
     
     if (glowRef.current.material) {
       glowRef.current.material.opacity = alpha;
-    }
-    
-    if (lineRef.current && lineRef.current.material) {
-      lineRef.current.material.opacity = alpha;
     }
 
     if (progress >= 1 && !completed.current) {
@@ -211,17 +161,6 @@ export default function CardShatter({ position, onComplete }) {
 
   return (
     <group position={position}>
-      {/* Glowing border frame line that dissolves */}
-      <mesh ref={lineRef} geometry={frameGeometry} position={[0, 0, -0.05]} renderOrder={0} frustumCulled={false}>
-        <meshBasicMaterial 
-          color={[1.8, 1.25, 0.7]}
-          toneMapped={false}
-          transparent
-          opacity={1}
-          depthWrite={false}
-        />
-      </mesh>
-
       {/* Champagne stardust particles flaking off from the border */}
       <instancedMesh ref={glowRef} args={[shardGeom, null, PARTICLE_COUNT]} frustumCulled={false}>
         <meshBasicMaterial
